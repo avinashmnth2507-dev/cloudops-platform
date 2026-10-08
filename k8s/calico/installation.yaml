@@ -1,0 +1,14 @@
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  cni:
+    type: Calico
+  calicoNetwork:
+    bgp: Disabled
+    ipPools:
+      - name: default-ipv4-ippool
+        cidr: 10.44.0.0/16
+        encapsulation: VXLAN
+        natOutgoing: Enabled
