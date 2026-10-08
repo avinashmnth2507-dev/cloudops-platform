@@ -6,6 +6,21 @@ grafana:
     passwordKey: admin-password
   service:
     type: ClusterIP
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  sidecar:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
   dashboards:
     default:
       cloudops:
@@ -15,6 +30,30 @@ grafana:
 prometheus:
   prometheusSpec:
     serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector:
+      matchLabels:
+        release: monitoring
+    serviceMonitorNamespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values:
+            - cloudops
+            - monitoring
+    podMonitorNamespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values:
+            - cloudops
+            - monitoring
+    probeNamespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values:
+            - cloudops
+            - monitoring
     retention: 3d
     resources:
       requests:
@@ -25,7 +64,31 @@ prometheus:
         memory: 768Mi
 alertmanager:
   enabled: false
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+    limits:
+      cpu: 200m
+      memory: 200Mi
 kubeStateMetrics:
   enabled: true
 nodeExporter:
   enabled: true
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 30Mi
+    limits:
+      cpu: 200m
+      memory: 50Mi
