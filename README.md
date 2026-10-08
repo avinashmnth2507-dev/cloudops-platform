@@ -1,6 +1,6 @@
 # CloudOps Platform
 
-> Production-style DevOps platform demonstrating the software delivery lifecycle from source code to cloud infrastructure, Kubernetes, observability and DevSecOps.
+> A DevOps portfolio project built around a small FastAPI service and supporting delivery, infrastructure, Kubernetes, and observability configuration.
 
 ![Python](https://img.shields.io/badge/Python-3.13-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-green)
@@ -10,39 +10,30 @@
 ![Prometheus](https://img.shields.io/badge/Prometheus-monitoring-e6522c)
 ![Grafana](https://img.shields.io/badge/Grafana-observability-orange)
 
+## Current Implementation Status
+
+> **This is a local portfolio project, not a production deployment. No AWS infrastructure or Kubernetes cluster has been deployed from this repository.**
+
+| Status | Components |
+|---|---|
+| Implemented and locally tested | FastAPI root metadata, health, readiness, status, and metrics endpoints. The current suite has five tests covering these paths. |
+| Implemented, test gap | `/api/v1/info` is implemented but does not yet have a dedicated test. |
+| Prepared, not deployed | Docker and Compose configuration; GitHub Actions workflow; Terraform environment and development profiles; Kubernetes manifests; Helm chart; k3s and Calico configuration; Prometheus and Grafana values. |
+| Planned or not verified | AWS and Kubernetes runtime behavior; Calico readiness and policy enforcement; HPA metrics behavior; Prometheus discovery and scraping; Grafana installation and dashboard provisioning; Loki log collection. |
+
+AWS infrastructure has not been deployed. Kubernetes and Calico runtime behavior have not been verified. Prometheus and Grafana have not been installed. GHCR image publishing is disabled. **SEC-002 remains open:** the standalone NetworkPolicy denies application ingress, and the actual ingress-controller and Prometheus identities and CNI enforcement are not verified.
+
+The latest local-only checks passed: five tests, Ruff, dependency consistency, Terraform formatting, and Helm lint. The local Python environment was 3.14 while CI is configured for 3.13. GitHub-hosted CI has not yet been executed. Helm lint reported only that a chart icon is recommended.
+
 ## Project Description
 
-CloudOps Platform is a portfolio-grade DevOps project built around a small FastAPI service. The application is intentionally simple so that the engineering focus stays on containerization, CI, infrastructure as code, Kubernetes, Helm, monitoring, logging, security and reproducible operations.
+CloudOps Platform demonstrates a small application surrounded by DevOps tooling. The application is intentionally simple so the project can focus on containerization, CI, infrastructure as code, Kubernetes, Helm, monitoring, logging, and security practices. See the [architecture overview](docs/architecture.md) and [deployment status and prerequisites](docs/deployment.md).
 
-The target workflow is:
+The target deployment architecture is a proposal. The [architecture page](docs/architecture.md) distinguishes local implementation, prepared configuration, and components that remain planned.
 
-```text
-Repository
-   -> Docker
-   -> GitHub Actions
-   -> GHCR
-   -> Terraform
-   -> AWS EC2
-   -> k3s
-   -> Kubernetes
-   -> Helm
-   -> Prometheus + Grafana
-   -> Loki
-   -> DevSecOps
-```
+## Project Components
 
-## Modules
-
-1. Repository + application
-2. Docker
-3. GitHub Actions CI
-4. Terraform + AWS
-5. Kubernetes
-6. Helm
-7. Prometheus + Grafana
-8. Loki logging
-9. DevSecOps
-10. Documentation, tests and cleanup
+The repository contains the application, Docker configuration, GitHub Actions workflow, Terraform modules, Kubernetes manifests, a Helm chart, Prometheus/Grafana configuration, Loki values, security examples, tests, and supporting documentation. These files represent a mix of locally tested code and deployment preparation; they do not mean the cloud or cluster components are running.
 
 ## Application
 
@@ -55,7 +46,11 @@ Repository
 | `/api/v1/info` | Runtime information |
 | `/metrics` | Prometheus metrics |
 
+The current tests cover five endpoints; `/api/v1/info` is implemented but does not yet have a dedicated test.
+
 ## Local Development
+
+From the repository root, create and activate a virtual environment, then install the pinned top-level dependencies:
 
 ```bash
 python3 -m venv .venv
@@ -66,60 +61,49 @@ ruff check .
 uvicorn app.main:app --reload
 ```
 
-Open `http://localhost:8000/docs` for the FastAPI API documentation.
+Open `http://localhost:8000/docs` while the local development server is running to view FastAPI's API documentation.
 
 ## Docker
+
+The repository includes a non-root runtime image and a Compose configuration. These commands are local examples; they have not been run as part of the current documentation review.
 
 ```bash
 docker build -t cloudops-platform:local .
 docker run --rm -p 8000:8000 cloudops-platform:local
 ```
 
-or:
+Or use the Compose configuration:
 
 ```bash
 docker compose up --build
 ```
 
-## CI/CD
+## GitHub Actions
 
-GitHub Actions runs:
+The workflow is configured but has not yet run on GitHub:
 
-- linting
-- unit tests
-- Gitleaks
-- On pushes to `main`, after the test job succeeds, the CI runner builds the image locally.
-- Trivy scans that local image.
-- The workflow does not log in to a registry or publish the image.
+- Pull requests run dependency installation, Ruff, pytest, and Gitleaks.
+- Pushes to `main` run those checks and then build the image in the CI runner and scan it with Trivy for HIGH and CRITICAL vulnerabilities.
+- GHCR publication is explicitly disabled. The workflow does not currently log in to a registry or publish an image.
+- The workflow has no AWS, Kubernetes, or infrastructure deployment job.
 
-For a public GitHub repository, standard GitHub-hosted runner usage is generally available without the private-repository Actions minute model.
+The most recent test run used local Python 3.14; the workflow selects Python 3.13. The first GitHub run will be the first verification of that CI environment. A previous local Trivy report found HIGH OS-package vulnerabilities; it is historical evidence, not a current scan, and the configured CI policy may fail if findings remain.
 
-## AWS Architecture
+## Deployment Readiness
 
-The low-cost lab uses one EC2 instance running k3s instead of EKS.
+> **Do not run the infrastructure or cluster examples below yet.** The Terraform bootstrap disables Flannel and k3s's embedded NetworkPolicy controller, but this repository does not install Calico automatically. Calico's version and host/runtime compatibility still require verification. The application image reference is a placeholder, the ingress is HTTP-only, and SEC-002 remains open. Review the [deployment prerequisites](docs/deployment.md), [Calico preparation](docs/calico-installation.md), [Kubernetes security notes](docs/kubernetes.md), and [monitoring prerequisites](docs/monitoring.md) before any separately authorized deployment.
 
-```text
-AWS VPC
- |
- +-- Public Subnet
-       |
-       +-- EC2
-             |
-             +-- k3s
-                  |
-                  +-- CloudOps
-                  +-- Prometheus
-                  +-- Grafana
-                  +-- Loki
-```
+## AWS Infrastructure
 
-Terraform is under `terraform/environments/dev`.
+Terraform configuration is under `terraform/environments/dev`. The examples use a public subnet and include public HTTP ingress. SSH and the Kubernetes API are restricted by the `ssh_cidr` input. These files describe infrastructure; no AWS resources have been created.
 
-Before applying Terraform, copy `terraform.tfvars.example` to `terraform.tfvars` and set your public IP as `/32`.
+For a future, separately reviewed deployment, copy `terraform/environments/dev/terraform.tfvars.example` to a local `terraform.tfvars` and replace the SSH CIDR placeholder with an authorized address. Do not commit the local file. See [development profiles](docs/development-profiles.md) for estimates, not capacity guarantees.
 
 ## Kubernetes
 
-Raw manifests are under `k8s/`.
+Raw manifests are under `k8s/`; the application Helm chart is under `helm/cloudops`. The example image currently contains `YOUR_GITHUB_OWNER` and the mutable `latest` tag. It cannot be treated as a published deployable image. GHCR publishing remains disabled.
+
+The following are **future reference examples only, not approved to execute now**. The default-deny standalone NetworkPolicy is intentionally omitted from the apply list because it blocks application ingress and Prometheus scraping until verified, narrowly scoped allow rules are designed. Do not apply it unchanged.
 
 ```bash
 kubectl apply -f k8s/namespace.yaml
@@ -130,112 +114,65 @@ kubectl apply -f k8s/service.yaml
 kubectl apply -f k8s/hpa.yaml
 ```
 
-Replace `YOUR_GITHUB_OWNER` in the deployment image before applying.
-
-**NetworkPolicy warning:** `k8s/networkpolicy.yaml` selects the CloudOps pods in namespace `cloudops` and denies all ingress to them. Applying it blocks the Traefik application route and Prometheus `/metrics` scraping on TCP `8000` until narrowly scoped allow rules are added for verified workload identities. The repository does not establish the actual Traefik or Prometheus namespace and pod labels, or prove that the installed CNI enforces NetworkPolicy. Keep the Helm NetworkPolicy disabled until those details and required traffic paths are verified. Local Helm linting and rendering do not prove runtime enforcement or Prometheus discovery.
+See the [Kubernetes security notes](docs/kubernetes.md) for the policy behavior and environment checks required before deployment.
 
 ## Helm
 
-```bash
-helm lint helm/cloudops
-helm upgrade --install cloudops helm/cloudops --namespace cloudops --create-namespace
-```
+The chart defaults Ingress, ServiceMonitor, and NetworkPolicy to disabled; HPA is enabled and requires a working Metrics API. For a local, non-deploying chart check, run `helm lint helm/cloudops` from the repository root. Linting does not install the chart or verify cluster behavior. See the [Helm guide](docs/helm.md).
 
 ## Monitoring
 
-Install kube-prometheus-stack:
+Monitoring values are prepared but Prometheus and Grafana have not been installed. The local dashboard JSON is not evidence of automatic Grafana provisioning. Persistent Prometheus storage and deployment capacity are unresolved.
+
+The command below is a **documentation-only example for a future, separately authorized deployment; do not execute it now**. It pins kube-prometheus-stack chart version `91.8.2` and retains the documented release, namespace, and values file:
 
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
 helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+  --version 91.8.2 \
   --namespace monitoring --create-namespace \
   -f monitoring/prometheus-values.yaml
 ```
 
-The application exposes Prometheus-compatible metrics at `/metrics`.
+The Grafana admin Secret must be provisioned separately through an approved secret-management process. No credential value is stored in this repository. See [monitoring status and selectors](docs/monitoring.md) and the [resource budget](docs/monitoring-resource-budget.md).
 
 ## Logging
 
-The logging directory contains a low-cost Loki configuration and deployment notes. Chart values should always be checked against the exact Loki chart version selected at deployment time.
+The `logging/` directory contains Loki values and documentation. A complete log-collection deployment has not been demonstrated; chart values must be reviewed against the exact Loki chart selected for any future installation.
 
 ## Security
 
-The project demonstrates:
-
-- Gitleaks
-- Trivy
-- non-root Docker image
-- read-only Kubernetes root filesystem
-- dropped Linux capabilities
-- seccomp RuntimeDefault
-- disabled privilege escalation
-- resource limits
-- RBAC
-- NetworkPolicy
-- restricted AWS SSH/API ingress
-- no credentials committed to Git
+The repository contains Gitleaks and Trivy CI configuration, a non-root Docker image, Kubernetes security contexts, resource settings, RBAC examples, and NetworkPolicy configuration. Their presence does not establish production operation or runtime enforcement. The [security documentation](docs/security.md) and [Kubernetes policy notes](docs/kubernetes.md) describe the current limits. SEC-002 remains open.
 
 ## Repository Structure
 
 ```text
 app/                  FastAPI application
- tests/               automated tests
-.github/workflows/    CI automation
-terraform/            AWS infrastructure
-k8s/                  Kubernetes manifests
-helm/                 Helm chart
+tests/                automated tests
+.github/workflows/    CI configuration
+terraform/            AWS infrastructure configuration and examples
+k8s/                  Kubernetes and Calico configuration
+helm/                 CloudOps Helm chart
 monitoring/           Prometheus/Grafana configuration
-logging/              Loki documentation/configuration
-security/             security controls
+logging/              Loki values and documentation
+security/             security documentation
 scripts/              operational scripts
-docs/                 engineering documentation
-screenshots/          real portfolio evidence
+docs/                 project documentation
 ```
 
 ## Credentials
 
-Never commit AWS keys, GitHub tokens, passwords, private keys, kubeconfig files or real `.env` files.
-
-Authenticate the local CLI instead:
-
-```bash
-aws sts get-caller-identity
-gh auth status
-```
-
-Codex can use the authenticated CLI environment without receiving the credentials themselves.
+Never commit AWS keys, GitHub tokens, passwords, private keys, kubeconfig files, Terraform state, or real `.env` files. Use local ignored files or an approved secret-management process. `.env.example` and `k8s/secret.example.yaml` are templates, not production credentials.
 
 ## Cost Control
 
-This project deliberately avoids EKS, NAT Gateway, RDS and unnecessary managed services. Use a small EC2 lab and destroy it after practice:
-
-```bash
-cd terraform/environments/dev
-terraform destroy
-```
-
-Review the current AWS Free Tier / account billing terms before deployment.
+The proposed lab avoids EKS, NAT Gateway, RDS, and other managed services. EC2, EBS, public IPv4, data transfer, and CPU-credit use can still incur charges. Review current account pricing and credits before a future deployment. Cleanup instructions are in [cost-control documentation](docs/cost-control.md); destroy commands must only be used for resources you intentionally created and intend to remove.
 
 ## Portfolio Evidence
 
-Capture real screenshots during implementation and store them in `screenshots/`. Never fabricate evidence.
-
-Recommended screenshots:
-
-1. application
-2. Docker container
-3. GitHub Actions
-4. Terraform
-5. AWS EC2
-6. Kubernetes
-7. Helm
-8. Prometheus
-9. Grafana
-10. Loki logs
-11. Trivy
-12. Gitleaks
+Capture genuine screenshots after implementing and verifying components. No runtime screenshots are currently tracked. Never fabricate deployment evidence; see [portfolio evidence notes](docs/screenshots.md).
 
 ## License
 
-MIT
+The repository includes an MIT `LICENSE` file. Confirm you have the rights to publish all project content and any future screenshots or third-party assets.
