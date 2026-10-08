@@ -5,8 +5,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 10001 appuser
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
+COPY requirements-runtime.txt .
+RUN pip install --no-cache-dir -r requirements-runtime.txt \
     && rm -rf /usr/local/lib/python3.13/site-packages/pip \
               /usr/local/lib/python3.13/site-packages/pip-*.dist-info \
               /usr/local/bin/pip \
