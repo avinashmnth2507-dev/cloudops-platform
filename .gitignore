@@ -1,0 +1,51 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+.env
+*.py[cod]
+
+# Terraform local state and initialization data
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+!terraform/**/terraform.tfvars.example
+kubeconfig*
+.DS_Store
+
+# Local environment files (keep example templates)
+.env.*
+!.env.example
+
+# Real Kubernetes Secret manifests (keep example templates)
+k8s/secret*.yaml
+k8s/secret*.yml
+!k8s/secret.example.yaml
+!k8s/secret.example.yml
+
+# Private keys and credential files
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+id_ecdsa
+id_dsa
+credentials
+credentials.*
+.aws/
+
+# Local Kubernetes configuration
+.kube/
+
+# Historical local backups; preserve locally, exclude from Git
+.github/workflows/ci.yml.backup
+terraform/environments/dev/outputs.tf.before-output-fix
+Dockerfile.runtime-test

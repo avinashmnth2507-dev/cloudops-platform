@@ -1,0 +1,103 @@
+{{- $prometheusNamespaceSelector := dict }}
+{{- $prometheusPodSelector := dict }}
+{{- if .Values.networkPolicy.enabled }}
+{{- $ingressController := .Values.networkPolicy.ingressController | default dict }}
+{{- if not (kindIs "map" $ingressController) }}
+{{- fail "networkPolicy.enabled requires networkPolicy.ingressController to be a map with explicit selectors" }}
+{{- end }}
+{{- $namespaceSelector := get $ingressController "namespaceSelector" }}
+{{- $podSelector := get $ingressController "podSelector" }}
+{{- if or (not (kindIs "map" $namespaceSelector)) (empty $namespaceSelector) }}
+{{- fail "networkPolicy.enabled requires a non-empty networkPolicy.ingressController.namespaceSelector" }}
+{{- end }}
+{{- if or (not (kindIs "map" $podSelector)) (empty $podSelector) }}
+{{- fail "networkPolicy.enabled requires a non-empty networkPolicy.ingressController.podSelector" }}
+{{- end }}
+{{- $namespaceMatchLabels := get $namespaceSelector "matchLabels" | default dict }}
+{{- $namespaceMatchExpressions := get $namespaceSelector "matchExpressions" | default list }}
+{{- $podMatchLabels := get $podSelector "matchLabels" | default dict }}
+{{- $podMatchExpressions := get $podSelector "matchExpressions" | default list }}
+{{- if and (empty $namespaceMatchLabels) (empty $namespaceMatchExpressions) }}
+{{- fail "networkPolicy.ingressController.namespaceSelector must contain non-empty matchLabels or matchExpressions" }}
+{{- end }}
+{{- if and (empty $podMatchLabels) (empty $podMatchExpressions) }}
+{{- fail "networkPolicy.ingressController.podSelector must contain non-empty matchLabels or matchExpressions" }}
+{{- end }}
+{{- if and (not (empty $namespaceMatchLabels)) (not (kindIs "map" $namespaceMatchLabels)) }}
+{{- fail "networkPolicy.ingressController.namespaceSelector.matchLabels must be a map" }}
+{{- end }}
+{{- if and (not (empty $namespaceMatchExpressions)) (not (kindIs "slice" $namespaceMatchExpressions)) }}
+{{- fail "networkPolicy.ingressController.namespaceSelector.matchExpressions must be a list" }}
+{{- end }}
+{{- if and (not (empty $podMatchLabels)) (not (kindIs "map" $podMatchLabels)) }}
+{{- fail "networkPolicy.ingressController.podSelector.matchLabels must be a map" }}
+{{- end }}
+{{- if and (not (empty $podMatchExpressions)) (not (kindIs "slice" $podMatchExpressions)) }}
+{{- fail "networkPolicy.ingressController.podSelector.matchExpressions must be a list" }}
+{{- end }}
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+{{- $prometheus := .Values.networkPolicy.prometheus | default dict }}
+{{- if not (kindIs "map" $prometheus) }}
+{{- fail "networkPolicy.enabled with monitoring.serviceMonitor.enabled requires networkPolicy.prometheus to be a map with explicit selectors" }}
+{{- end }}
+{{- $prometheusNamespaceSelector = get $prometheus "namespaceSelector" }}
+{{- $prometheusPodSelector = get $prometheus "podSelector" }}
+{{- if or (not (kindIs "map" $prometheusNamespaceSelector)) (empty $prometheusNamespaceSelector) }}
+{{- fail "networkPolicy.enabled with monitoring.serviceMonitor.enabled requires a non-empty networkPolicy.prometheus.namespaceSelector" }}
+{{- end }}
+{{- if or (not (kindIs "map" $prometheusPodSelector)) (empty $prometheusPodSelector) }}
+{{- fail "networkPolicy.enabled with monitoring.serviceMonitor.enabled requires a non-empty networkPolicy.prometheus.podSelector" }}
+{{- end }}
+{{- $prometheusNamespaceMatchLabels := get $prometheusNamespaceSelector "matchLabels" | default dict }}
+{{- $prometheusNamespaceMatchExpressions := get $prometheusNamespaceSelector "matchExpressions" | default list }}
+{{- $prometheusPodMatchLabels := get $prometheusPodSelector "matchLabels" | default dict }}
+{{- $prometheusPodMatchExpressions := get $prometheusPodSelector "matchExpressions" | default list }}
+{{- if and (empty $prometheusNamespaceMatchLabels) (empty $prometheusNamespaceMatchExpressions) }}
+{{- fail "networkPolicy.prometheus.namespaceSelector must contain non-empty matchLabels or matchExpressions" }}
+{{- end }}
+{{- if and (empty $prometheusPodMatchLabels) (empty $prometheusPodMatchExpressions) }}
+{{- fail "networkPolicy.prometheus.podSelector must contain non-empty matchLabels or matchExpressions" }}
+{{- end }}
+{{- if and (not (empty $prometheusNamespaceMatchLabels)) (not (kindIs "map" $prometheusNamespaceMatchLabels)) }}
+{{- fail "networkPolicy.prometheus.namespaceSelector.matchLabels must be a map" }}
+{{- end }}
+{{- if and (not (empty $prometheusNamespaceMatchExpressions)) (not (kindIs "slice" $prometheusNamespaceMatchExpressions)) }}
+{{- fail "networkPolicy.prometheus.namespaceSelector.matchExpressions must be a list" }}
+{{- end }}
+{{- if and (not (empty $prometheusPodMatchLabels)) (not (kindIs "map" $prometheusPodMatchLabels)) }}
+{{- fail "networkPolicy.prometheus.podSelector.matchLabels must be a map" }}
+{{- end }}
+{{- if and (not (empty $prometheusPodMatchExpressions)) (not (kindIs "slice" $prometheusPodMatchExpressions)) }}
+{{- fail "networkPolicy.prometheus.podSelector.matchExpressions must be a list" }}
+{{- end }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "cloudops.fullname" . }}-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app: cloudops
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+{{- toYaml $namespaceSelector | nindent 12 }}
+          podSelector:
+{{- toYaml $podSelector | nindent 12 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.containerPort }}
+{{ if .Values.monitoring.serviceMonitor.enabled }}
+    - from:
+        - namespaceSelector:
+{{- toYaml $prometheusNamespaceSelector | nindent 12 }}
+          podSelector:
+{{- toYaml $prometheusPodSelector | nindent 12 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.containerPort }}
+{{ end }}
+{{- end }}

@@ -1,0 +1,10 @@
+{
+  "title": "CloudOps Platform",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {"type":"stat","title":"Request Rate","gridPos":{"h":4,"w":6,"x":0,"y":0},"targets":[{"expr":"sum(rate(cloudops_http_requests_total[5m]))","refId":"A"}]},
+    {"type":"stat","title":"5xx Errors","gridPos":{"h":4,"w":6,"x":6,"y":0},"targets":[{"expr":"sum(rate(cloudops_http_requests_total{status=~\"5..\"}[5m]))","refId":"A"}]},
+    {"type":"timeseries","title":"Request Latency","gridPos":{"h":8,"w":12,"x":0,"y":4},"targets":[{"expr":"histogram_quantile(0.95, sum(rate(cloudops_http_request_duration_seconds_bucket[5m])) by (le))","refId":"A"}]}
+  ]
+}

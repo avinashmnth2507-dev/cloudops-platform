@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cloudops
+  namespace: cloudops
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: cloudops.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cloudops
+                port:
+                  number: 80

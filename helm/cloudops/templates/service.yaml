@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudops
+  labels:
+    app: cloudops
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: cloudops
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.containerPort }}

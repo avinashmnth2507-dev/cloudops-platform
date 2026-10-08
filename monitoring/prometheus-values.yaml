@@ -1,0 +1,31 @@
+grafana:
+  enabled: true
+  admin:
+    existingSecret: cloudops-grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  service:
+    type: ClusterIP
+  dashboards:
+    default:
+      cloudops:
+        gnetId: 0
+        revision: 1
+        datasource: Prometheus
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    retention: 3d
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 768Mi
+alertmanager:
+  enabled: false
+kubeStateMetrics:
+  enabled: true
+nodeExporter:
+  enabled: true

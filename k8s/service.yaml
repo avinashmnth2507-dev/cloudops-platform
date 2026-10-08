@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudops
+  namespace: cloudops
+  labels:
+    app: cloudops
+spec:
+  selector:
+    app: cloudops
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+  type: ClusterIP

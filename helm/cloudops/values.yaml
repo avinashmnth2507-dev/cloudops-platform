@@ -1,0 +1,49 @@
+replicaCount: 2
+image:
+  repository: ghcr.io/YOUR_GITHUB_OWNER/cloudops-platform
+  tag: latest
+  pullPolicy: IfNotPresent
+serviceAccount:
+  create: true
+  name: cloudops
+service:
+  type: ClusterIP
+  port: 80
+containerPort: 8000
+env:
+  APP_NAME: CloudOps Platform
+  APP_VERSION: 1.0.0
+  ENVIRONMENT: kubernetes
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+ingress:
+  enabled: false
+  className: traefik
+  host: cloudops.local
+
+# Leave disabled until the ingress controller's namespace and pod labels are verified.
+networkPolicy:
+  enabled: false
+  ingressController:
+    namespaceSelector: {}
+    podSelector: {}
+  prometheus:
+    namespaceSelector: {}
+    podSelector: {}
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  cpuUtilization: 70
+
+monitoring:
+  serviceMonitor:
+    enabled: false
+    releaseLabel: monitoring
+    interval: 15s
