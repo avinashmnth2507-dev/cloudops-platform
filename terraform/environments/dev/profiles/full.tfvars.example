@@ -1,0 +1,5 @@
+# Full-observability capacity profile. Replace the SSH CIDR placeholder before use.
+aws_region    = "ap-south-1"
+project_name  = "cloudops"
+instance_type = "t3.large"
+ssh_cidr      = "YOUR_PUBLIC_IP/32"
