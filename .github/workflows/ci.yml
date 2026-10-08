@@ -46,6 +46,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      archive_sha256: ${{ steps.archive_checksum.outputs.sha256 }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -67,3 +69,99 @@ jobs:
           format: table
           exit-code: '1'
           severity: CRITICAL,HIGH
+
+      # After approval, remove all three `if: ${{ false }}` guards to hand off the scanned image.
+      - name: Export the scanned image for the gated publishing job
+        if: ${{ false }}
+        run: docker save "cloudops-platform:${GITHUB_SHA}" --output "${RUNNER_TEMP}/cloudops-platform.tar"
+
+      - name: Calculate the scanned image archive checksum
+        if: ${{ false }}
+        id: archive_checksum
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          sha256sum --binary cloudops-platform.tar > cloudops-platform.tar.sha256
+          checksum="$(cut -d ' ' -f 1 cloudops-platform.tar.sha256)"
+          echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the scanned image for the gated publishing job
+        if: ${{ false }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cloudops-image-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/cloudops-platform.tar
+            ${{ runner.temp }}/cloudops-platform.tar.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: [test, image]
+    # Publication is disabled. After explicit approval, remove the trailing `&& false`.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && false }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-digest: ${{ steps.push.outputs.image_digest }}
+    steps:
+      - name: Download the scanned image artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: cloudops-image-${{ github.sha }}
+          path: ${{ runner.temp }}/cloudops-image
+
+      - name: Verify the scanned image archive checksum
+        working-directory: ${{ runner.temp }}/cloudops-image
+        env:
+          EXPECTED_ARCHIVE_SHA256: ${{ needs.image.outputs.archive_sha256 }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPECTED_ARCHIVE_SHA256" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            echo "Expected image archive checksum is missing or malformed." >&2
+            exit 1
+          fi
+          sha256sum --check --strict cloudops-platform.tar.sha256
+          actual="$(sha256sum --binary cloudops-platform.tar | cut -d ' ' -f 1)"
+          if [[ "$actual" != "$EXPECTED_ARCHIVE_SHA256" ]]; then
+            echo "Downloaded image archive does not match the scanned archive checksum." >&2
+            exit 1
+          fi
+
+      - name: Load and tag the scanned image
+        id: image
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          docker load --input "${RUNNER_TEMP}/cloudops-image/cloudops-platform.tar"
+          owner_lc="$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          image_name="ghcr.io/${owner_lc}/cloudops-platform"
+          image_ref="${image_name}:sha-${COMMIT_SHA}"
+          docker tag "cloudops-platform:${COMMIT_SHA}" "$image_ref"
+          echo "image_name=$image_name" >> "$GITHUB_OUTPUT"
+          echo "image_ref=$image_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to GHCR with GITHUB_TOKEN
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Publish the scanned commit-SHA image and record its digest
+        id: push
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.image_name }}
+          IMAGE_REF: ${{ steps.image.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          push_output="$(docker push "$IMAGE_REF" 2>&1)"
+          printf '%s\n' "$push_output"
+          digest_candidates="$(printf '%s\n' "$push_output" | awk '{for (i = 1; i < NF; i++) if ($i == "digest:") print $(i + 1)}')"
+          if [[ ! "$digest_candidates" =~ ^sha256:[0-9a-fA-F]{64}$ ]]; then
+            echo "Could not extract one valid SHA-256 image digest." >&2
+            exit 1
+          fi
+          digest="$digest_candidates"
+          echo "image_digest=$digest" >> "$GITHUB_OUTPUT"
+          printf 'Published image: `%s@%s`\n' "$IMAGE_NAME" "$digest" >> "$GITHUB_STEP_SUMMARY"
