@@ -39,6 +39,7 @@ spec:
               drop: [ALL]
             readOnlyRootFilesystem: true
             runAsNonRoot: true
+            runAsGroup: 10001
             runAsUser: 10001
           resources:
             requests:
