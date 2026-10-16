@@ -5,11 +5,11 @@ CloudOps Platform is a portfolio project centered on a small FastAPI service. Th
 ## Implemented locally
 
 - FastAPI endpoints for application metadata, health, readiness, status, runtime information, and Prometheus metrics; structured JSON request events are written to stdout.
-- The local pytest suite has 15 passing tests, including endpoint, metric, request logging, and instrumentation-failure coverage. `/api/v1/info` has no dedicated endpoint test.
+- The local pytest suite has 17 passing tests, including coverage for all six application endpoints, metrics, request logging, and instrumentation-failure handling.
 - Dockerfile and Docker Compose configuration.
 - GitHub Actions Run #5 passed on commit `f6ba78bcdda1a843e9cb33742826b46e98976f00`, including the test job and the main-branch image build and strict scan. The GHCR publish job exists but is disabled; no image was published.
 
-The latest local Ruff and pytest checks passed (15 tests); local Python is 3.14 and the workflow uses Python 3.13. CI success verifies the workflow checks for that commit; it does not verify a currently running Compose container or deploy cloud or cluster infrastructure.
+The latest local Ruff and pytest checks passed (17 tests); local Python is 3.14 and the workflow uses Python 3.13. CI success verifies the workflow checks for that commit; it does not verify a currently running Compose container or deploy cloud or cluster infrastructure.
 
 ## Prepared configuration — not deployed
 
@@ -26,7 +26,7 @@ The diagram shows the intended flow, not a deployed system. Dashed edges indicat
 ```mermaid
 flowchart TB
   subgraph local["Implemented locally"]
-    app["FastAPI application and JSON request events"] --> tests["15 local pytest tests passed"]
+    app["FastAPI application and JSON request events"] --> tests["17 local pytest tests passed"]
     repo["Git repository"] --> workflow["GitHub Actions<br/>Run #5 passed"]
     workflow --> validation["Pull request: Ruff, tests, Gitleaks"]
     workflow --> scan["Main push: build image and scan with Trivy"]

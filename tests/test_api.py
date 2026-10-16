@@ -26,6 +26,20 @@ def test_ready():
 def test_status():
     assert client.get('/api/v1/status').status_code == 200
 
+def test_info():
+    response = client.get('/api/v1/info')
+
+    assert response.status_code == 200
+    assert response.headers['content-type'].startswith('application/json')
+
+    body = response.json()
+    assert set(body) == {'name', 'version', 'environment', 'uptime_seconds'}
+    assert body['name'] == app_main.settings.app_name
+    assert body['version'] == app_main.settings.app_version
+    assert body['environment'] == app_main.settings.environment
+    assert isinstance(body['uptime_seconds'], (int, float))
+    assert body['uptime_seconds'] >= 0
+
 def test_metrics():
     client.get('/health')
     r = client.get('/metrics')
