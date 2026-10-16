@@ -80,13 +80,13 @@ async def request_logging_and_metrics_middleware(request: Request, call_next):
         elapsed = time.perf_counter() - start
         route = _route_label(request)
         try:
-            REQUEST_COUNT.labels(request.method, route, status_code).inc()
+            REQUEST_COUNT.labels(method, route, status_code).inc()
         except Exception:
             # Instrumentation is best-effort; do not log its own failures.
             pass
 
         try:
-            REQUEST_LATENCY.labels(request.method, route).observe(elapsed)
+            REQUEST_LATENCY.labels(method, route).observe(elapsed)
         except Exception:
             pass
 

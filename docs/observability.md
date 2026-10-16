@@ -22,7 +22,7 @@ The FastAPI `/metrics` endpoint exposes these application metrics:
 - `cloudops_http_requests_total` — Counter with `method`, `path`, and `status` labels.
 - `cloudops_http_request_duration_seconds` — Histogram with `method` and `path` labels; histogram observations are in seconds and are exported with `_bucket`, `_sum`, and `_count` series.
 
-The `path` label uses an allowlisted route template; unmatched paths share the fixed `unmatched` value. The Prometheus `method` label uses the HTTP method value. No query strings are used as labels. The request event's method field is bounded to recognized methods or `OTHER`.
+The `path` label uses an allowlisted route template; unmatched paths share the fixed `unmatched` value. Both the Prometheus `method` label and request event method field use recognized methods or the fixed `OTHER` value, so unusual client-supplied methods cannot create additional method series. No query strings are used as labels.
 
 The application endpoint and metrics instrumentation are implemented locally. Prometheus, Grafana, and infrastructure monitoring have not been deployed or activated, so no running monitoring stack, scrape, or dashboard is established by these files. Kubernetes and infrastructure metrics would be collected only after a separately reviewed monitoring deployment. See [monitoring status](monitoring.md) and [architecture status](architecture.md).
 

@@ -222,6 +222,44 @@ def test_unknown_paths_share_bounded_metric_labels_and_exclude_secrets(capsys):
         assert secret not in metrics_text
 
 
+def test_unusual_http_methods_use_bounded_metric_labels(capsys):
+    before_metrics = client.get('/metrics').text
+    before_other_count = _metric_value(
+        before_metrics,
+        'cloudops_http_requests_total',
+        {'method': 'OTHER', 'path': '/health', 'status': '405'},
+    )
+    before_other_observations = _metric_value(
+        before_metrics,
+        'cloudops_http_request_duration_seconds_count',
+        {'method': 'OTHER', 'path': '/health'},
+    )
+    capsys.readouterr()
+
+    unusual_methods = ('BREW', 'PURGE')
+    responses = [client.request(method, '/health') for method in unusual_methods]
+
+    output = capsys.readouterr().out
+    events = _request_events(output)
+    metrics_text = client.get('/metrics').text
+    assert [response.status_code for response in responses] == [405, 405]
+    assert len(events) == len(unusual_methods)
+    assert [event['method'] for event in events] == ['OTHER', 'OTHER']
+    assert [event['route'] for event in events] == ['/health', '/health']
+    assert _metric_value(
+        metrics_text,
+        'cloudops_http_requests_total',
+        {'method': 'OTHER', 'path': '/health', 'status': '405'},
+    ) - before_other_count == len(unusual_methods)
+    assert _metric_value(
+        metrics_text,
+        'cloudops_http_request_duration_seconds_count',
+        {'method': 'OTHER', 'path': '/health'},
+    ) - before_other_observations == len(unusual_methods)
+    for method in unusual_methods:
+        assert f'method="{method}"' not in metrics_text
+
+
 def test_unhandled_exception_is_logged_as_500_without_exception_details(capsys):
     request = _make_request()
     before_metrics = client.get('/metrics').text
