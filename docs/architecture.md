@@ -4,12 +4,12 @@ CloudOps Platform is a portfolio project centered on a small FastAPI service. Th
 
 ## Implemented locally
 
-- FastAPI endpoints for application metadata, health, readiness, status, runtime information, and Prometheus metrics.
-- Five automated tests covering the root, health, readiness, status, and metrics endpoints.
+- FastAPI endpoints for application metadata, health, readiness, status, runtime information, and Prometheus metrics; structured JSON request events are written to stdout.
+- The local pytest suite has 15 passing tests, including endpoint, metric, request logging, and instrumentation-failure coverage. `/api/v1/info` has no dedicated endpoint test.
 - Dockerfile and Docker Compose configuration.
-- GitHub Actions configuration for pull-request checks and a main-branch image scan. The workflow has not yet run on GitHub.
+- GitHub Actions Run #5 passed on commit `f6ba78bcdda1a843e9cb33742826b46e98976f00`, including the test job and the main-branch image build and strict scan. The GHCR publish job exists but is disabled; no image was published.
 
-The latest local review passed the five tests, Ruff, dependency consistency, Terraform formatting, and Helm lint. The local Python environment was 3.14; the workflow selects Python 3.13. Local checks do not verify a GitHub-hosted run or runtime deployment.
+The latest local Ruff and pytest checks passed (15 tests); local Python is 3.14 and the workflow uses Python 3.13. CI success verifies the workflow checks for that commit; it does not verify a currently running Compose container or deploy cloud or cluster infrastructure.
 
 ## Prepared configuration — not deployed
 
@@ -26,14 +26,14 @@ The diagram shows the intended flow, not a deployed system. Dashed edges indicat
 ```mermaid
 flowchart TB
   subgraph local["Implemented locally"]
-    app["FastAPI application"] --> tests["Five local tests"]
-    repo["Git repository"] --> workflow["GitHub Actions configuration<br/>not yet run on GitHub"]
+    app["FastAPI application and JSON request events"] --> tests["15 local pytest tests passed"]
+    repo["Git repository"] --> workflow["GitHub Actions<br/>Run #5 passed"]
     workflow --> validation["Pull request: Ruff, tests, Gitleaks"]
     workflow --> scan["Main push: build image and scan with Trivy"]
     scan --> localimage["Image in CI runner only"]
   end
 
-  ghcr["GHCR image<br/>publishing disabled"]
+  ghcr["GHCR image<br/>publishing disabled; no image published"]
   localimage -. "planned; disabled" .-> ghcr
 
   subgraph prepared["Prepared configuration — not applied"]
@@ -58,7 +58,7 @@ flowchart TB
   loki -. "future integration" .-> lokiworkload
 ```
 
-The workflow builds and scans an image on a main-branch push after tests succeed, but it does not publish that image. GHCR publication is explicitly disabled. The Kubernetes and Helm image references still use a placeholder owner and mutable `latest` tag, so they are not deployable as written.
+Run #5 passed for commit `f6ba78bcdda1a843e9cb33742826b46e98976f00`. On main pushes, the workflow builds and scans an image after tests succeed. A publish job is present but guarded by an always-false condition, so it does not log in to GHCR or publish the image. Kubernetes and Helm image references still contain placeholders and are not deployable as written.
 
 ## Deployment prerequisites and limits
 

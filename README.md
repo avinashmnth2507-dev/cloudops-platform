@@ -16,14 +16,14 @@
 
 | Status | Components |
 |---|---|
-| Implemented and locally tested | FastAPI root metadata, health, readiness, status, and metrics endpoints. The current suite has five tests covering these paths. |
-| Implemented, test gap | `/api/v1/info` is implemented but does not yet have a dedicated test. |
-| Prepared, not deployed | Docker and Compose configuration; GitHub Actions workflow; Terraform environment and development profiles; Kubernetes manifests; Helm chart; k3s and Calico configuration; Prometheus and Grafana values. |
+| Implemented and locally tested | FastAPI metadata, health, readiness, status, and metrics endpoints; structured JSON request events; bounded route labels. The current local suite has 15 passing tests. `/api/v1/info` is implemented but has no dedicated endpoint test. |
+| CI verified | GitHub Actions Run #5 passed for commit `f6ba78bcdda1a843e9cb33742826b46e98976f00`, including tests, linting, secret scanning, image build, and strict Trivy scanning. |
+| Configured, not deployed | Docker and Compose configuration; Terraform environment and development profiles; Kubernetes manifests; Helm chart; k3s and Calico configuration; Prometheus, Grafana, and Loki values. |
 | Planned or not verified | AWS and Kubernetes runtime behavior; Calico readiness and policy enforcement; HPA metrics behavior; Prometheus discovery and scraping; Grafana installation and dashboard provisioning; Loki log collection. |
 
-AWS infrastructure has not been deployed. Kubernetes and Calico runtime behavior have not been verified. Prometheus and Grafana have not been installed. GHCR image publishing is disabled. **SEC-002 remains open:** the standalone NetworkPolicy denies application ingress, and the actual ingress-controller and Prometheus identities and CNI enforcement are not verified.
+No Terraform-managed AWS infrastructure, Kubernetes cluster, Helm release, or monitoring stack has been deployed or activated from this repository. GHCR publishing is disabled, so the configured image references remain placeholders and no image has been published by this workflow. A successful CI run verifies the configured checks; it does not publish or deploy the application. **SEC-002 remains open:** the standalone NetworkPolicy denies application ingress, and the actual ingress-controller and Prometheus identities and CNI enforcement are not verified.
 
-The latest local-only checks passed: five tests, Ruff, dependency consistency, Terraform formatting, and Helm lint. The local Python environment was 3.14 while CI is configured for 3.13. GitHub-hosted CI has not yet been executed. Helm lint reported only that a chart icon is recommended.
+The latest local validation passed Ruff and pytest (15 tests). The local Python environment is 3.14; GitHub Actions uses Python 3.13. GitHub Actions Run #5 passed for the commit listed above. The successful CI run is separate from the disabled GHCR publishing job and from any cloud or cluster deployment.
 
 ## Project Description
 
@@ -63,6 +63,8 @@ uvicorn app.main:app --reload
 
 Open `http://localhost:8000/docs` while the local development server is running to view FastAPI's API documentation.
 
+For bounded, GET-only checks of an application that is already running locally, see [local observability verification](docs/observability.md#local-verification). These checks do not start, stop, or recreate an application instance.
+
 ## Docker
 
 The repository includes a non-root runtime image and a Compose configuration. These commands are local examples; they have not been run as part of the current documentation review.
@@ -80,14 +82,14 @@ docker compose up --build
 
 ## GitHub Actions
 
-The workflow is configured but has not yet run on GitHub:
+GitHub Actions Run #5 passed for commit `f6ba78bcdda1a843e9cb33742826b46e98976f00`:
 
 - Pull requests run dependency installation, Ruff, pytest, and Gitleaks.
-- Pushes to `main` run those checks and then build the image in the CI runner and scan it with Trivy for HIGH and CRITICAL vulnerabilities.
-- GHCR publication is explicitly disabled. The workflow does not currently log in to a registry or publish an image.
+- Pushes to `main` run those checks, build the image in the CI runner, and scan it with Trivy for HIGH and CRITICAL vulnerabilities. Run #5 passed these checks.
+- A GHCR publish job exists, but its job-level condition is explicitly disabled. Its login and push steps do not run, and this workflow has not published an image.
 - The workflow has no AWS, Kubernetes, or infrastructure deployment job.
 
-The most recent test run used local Python 3.14; the workflow selects Python 3.13. The first GitHub run will be the first verification of that CI environment. A previous local Trivy report found HIGH OS-package vulnerabilities; it is historical evidence, not a current scan, and the configured CI policy may fail if findings remain.
+The local virtual environment uses Python 3.14; the workflow selects Python 3.13. A previous local Trivy report found HIGH OS-package vulnerabilities; it is historical evidence. Run #5's strict Trivy scan passed for the commit above. Future image changes still require a fresh scan. Passing CI does not mean the image was published or the application was deployed.
 
 ## Deployment Readiness
 
@@ -139,7 +141,7 @@ The Grafana admin Secret must be provisioned separately through an approved secr
 
 ## Logging
 
-The `logging/` directory contains Loki values and documentation. A complete log-collection deployment has not been demonstrated; chart values must be reviewed against the exact Loki chart selected for any future installation.
+The FastAPI application emits one structured JSON request event to stdout when request instrumentation is functioning. The event fields, sensitive-data exclusions, metrics, and safe local inspection steps are documented in [Observability](docs/observability.md). The `logging/` directory contains Loki values and documentation, but a complete log-collection deployment has not been demonstrated; chart values must be reviewed against the exact Loki chart selected for any future installation.
 
 ## Security
 

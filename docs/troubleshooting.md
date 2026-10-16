@@ -1,5 +1,7 @@
 # Troubleshooting
 
+These are reference diagnostics for an already deployed, separately authorized Kubernetes or Terraform environment. This repository does not establish that such an environment currently exists. Do not run infrastructure or cluster commands until the target environment and authorization are confirmed.
+
 ## Pod not starting
 
 ```bash
@@ -9,7 +11,7 @@ kubectl logs -n cloudops <pod>
 
 ## Image pull errors
 
-Verify the GHCR repository is public or configure an imagePullSecret.
+GHCR publishing is disabled in this repository's workflow, so the workflow has not published an image. Treat owner and tag values in the manifests as placeholders. Before troubleshooting a pull, confirm that the selected immutable image has actually been published and that its visibility or `imagePullSecret` matches the cluster's access requirements.
 
 ## Readiness failures
 
