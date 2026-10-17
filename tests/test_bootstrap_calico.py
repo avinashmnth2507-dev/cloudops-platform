@@ -62,6 +62,7 @@ def calico_inputs(tmp_path):
             'KUBECTL_CONTEXTS': 'test-context-only',
             'KUBECTL_APPLIED_DIR': str(applied_dir),
             'KUBECTL_MUTATION_MARKER': str(tmp_path / 'mutated'),
+            'TMPDIR': str(tmp_path),
         }
     )
     return artifact_dir, env, calls_file, applied_dir
@@ -262,3 +263,12 @@ def test_unknown_kube_context_stops_before_any_apply(calico_inputs):
     assert 'does not name a configured context' in result.stderr
     calls = calls_file.read_text(encoding='utf-8').splitlines()
     assert calls == ['config get-contexts --output=name']
+
+
+def test_research_candidate_checksums_are_not_embedded_as_approved_values():
+    script = SCRIPT.read_text(encoding='utf-8')
+
+    assert '5306c2c6d9fd6762d804f9da51c049b8269c33498a364c5df0eed555aba026bd' not in script
+    assert 'aef423b36aef8cf86567f92bbe5eea4b4ca105a6fc7dbf43de599c6fa70388ba' not in script
+    assert 'APPROVED_CRD_SHA256' in script
+    assert 'APPROVED_OPERATOR_SHA256' in script

@@ -1,4 +1,7 @@
 {{- if .Values.hpa.enabled }}
+{{- if gt (int .Values.hpa.minReplicas) (int .Values.hpa.maxReplicas) }}
+{{- fail "hpa.minReplicas must be less than or equal to hpa.maxReplicas" }}
+{{- end }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:

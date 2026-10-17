@@ -26,7 +26,7 @@ The diagram shows the intended flow, not a deployed system. Dashed edges indicat
 ```mermaid
 flowchart TB
   subgraph local["Implemented locally"]
-    app["FastAPI application and JSON request events"] --> tests["17 local pytest tests passed"]
+    app["FastAPI application and JSON request events"] --> tests["Local pytest regression suite"]
     repo["Git repository"] --> workflow["GitHub Actions<br/>Run #5 passed"]
     workflow --> validation["Pull request: Ruff, tests, Gitleaks"]
     workflow --> scan["Main push: build image and scan with Trivy"]

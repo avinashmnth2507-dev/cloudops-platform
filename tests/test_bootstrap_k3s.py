@@ -316,6 +316,15 @@ def test_install_mode_refuses_even_validated_inputs_without_running_installer(k3
     assert not installer_marker.exists()
 
 
+def test_k3s_script_has_no_mutable_installer_download_route():
+    script = SCRIPT.read_text(encoding='utf-8')
+
+    assert 'get.k3s.io' not in script
+    assert 'curl' not in script
+    assert 'wget' not in script
+    assert 'installation is disabled' in script
+
+
 def test_install_mode_rejects_bad_checksum_before_any_installation_command(k3s_inputs):
     _, env, _, systemctl_marker, installer_marker = k3s_inputs
     env['APPROVED_K3S_BINARY_SHA256'] = '0' * 64

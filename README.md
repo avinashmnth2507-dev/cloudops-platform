@@ -16,14 +16,14 @@
 
 | Status | Components |
 |---|---|
-| Implemented and locally tested | FastAPI metadata, health, readiness, status, info, and metrics endpoints; structured JSON request events; bounded route labels. The current local suite has 17 passing tests covering all six endpoints. |
+| Implemented and locally tested | FastAPI metadata, health, readiness, status, info, and metrics endpoints; startup validation for display configuration; structured JSON request events; bounded route labels. The local suite covers all six endpoints. |
 | CI verified | GitHub Actions Run #5 passed for commit `f6ba78bcdda1a843e9cb33742826b46e98976f00`, including tests, linting, secret scanning, image build, and strict Trivy scanning. |
 | Configured, not deployed | Docker and Compose configuration; Terraform environment and development profiles; Kubernetes manifests; Helm chart; k3s and Calico configuration; Prometheus, Grafana, and Loki values. |
 | Planned or not verified | AWS and Kubernetes runtime behavior; Calico readiness and policy enforcement; HPA metrics behavior; Prometheus discovery and scraping; Grafana installation and dashboard provisioning; Loki log collection. |
 
 No Terraform-managed AWS infrastructure, Kubernetes cluster, Helm release, or monitoring stack has been deployed or activated from this repository. GHCR publishing is disabled, so the configured image references remain placeholders and no image has been published by this workflow. A successful CI run verifies the configured checks; it does not publish or deploy the application. **SEC-002 remains open:** the standalone NetworkPolicy denies application ingress, and the actual ingress-controller and Prometheus identities and CNI enforcement are not verified.
 
-The latest local validation passed Ruff and pytest (17 tests). The local Python environment is 3.14; GitHub Actions uses Python 3.13. GitHub Actions Run #5 passed for the commit listed above. The successful CI run is separate from the disabled GHCR publishing job and from any cloud or cluster deployment.
+The latest local validation on this working tree passed Ruff and pytest (128 tests). Use `scripts/verify-local.sh` to run the local checks. The local Python environment is 3.14; GitHub Actions uses Python 3.13. GitHub Actions Run #5 passed for the commit listed above; it predates these uncommitted changes. The successful CI run is separate from the disabled GHCR publishing job and from any cloud or cluster deployment.
 
 ## Project Description
 
@@ -60,6 +60,8 @@ pytest -q
 ruff check .
 uvicorn app.main:app --reload
 ```
+
+After the existing virtual environment and dependencies are available, run `scripts/verify-local.sh` for Ruff, pytest, shell syntax, and local Helm/Terraform formatting checks when those CLIs are already installed. It does not install tools or operate Docker, cloud, or cluster infrastructure. Configuration values `APP_NAME` (1–100 characters), `APP_VERSION` (1–50), and `ENVIRONMENT` (1–50) are trimmed and validated at startup; empty values and control characters are rejected.
 
 Open `http://localhost:8000/docs` while the local development server is running to view FastAPI's API documentation.
 

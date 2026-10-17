@@ -15,16 +15,34 @@ client = TestClient(app)
 def test_root():
     r = client.get('/')
     assert r.status_code == 200
-    assert r.json()['service'] == 'CloudOps Platform'
+    assert r.headers['content-type'].startswith('application/json')
+    assert r.json() == {
+        'service': app_main.settings.app_name,
+        'version': app_main.settings.app_version,
+        'environment': app_main.settings.environment,
+    }
 
 def test_health():
-    assert client.get('/health').json() == {'status': 'healthy'}
+    response = client.get('/health')
+    assert response.status_code == 200
+    assert response.headers['content-type'].startswith('application/json')
+    assert response.json() == {'status': 'healthy'}
 
 def test_ready():
-    assert client.get('/ready').json() == {'status': 'ready'}
+    response = client.get('/ready')
+    assert response.status_code == 200
+    assert response.headers['content-type'].startswith('application/json')
+    assert response.json() == {'status': 'ready'}
 
 def test_status():
-    assert client.get('/api/v1/status').status_code == 200
+    response = client.get('/api/v1/status')
+    assert response.status_code == 200
+    assert response.headers['content-type'].startswith('application/json')
+    assert response.json() == {
+        'service': app_main.settings.app_name,
+        'status': 'operational',
+        'version': app_main.settings.app_version,
+    }
 
 def test_info():
     response = client.get('/api/v1/info')
@@ -44,7 +62,9 @@ def test_metrics():
     client.get('/health')
     r = client.get('/metrics')
     assert r.status_code == 200
+    assert r.headers['content-type'].startswith('text/plain')
     assert 'cloudops_http_requests_total' in r.text
+    assert 'cloudops_http_request_duration_seconds_bucket' in r.text
     assert 'path="/health"' in r.text
 
 
@@ -167,6 +187,8 @@ def test_unknown_route_uses_fallback_and_logs_no_sensitive_values(capsys):
     output = capsys.readouterr().out
     events = _request_events(output)
     assert response.status_code == 404
+    assert response.headers['content-type'].startswith('application/json')
+    assert response.json() == {'detail': 'Not Found'}
     assert len(events) == 1
     assert events[0]['route'] == 'unmatched'
     assert events[0]['status_code'] == 404
