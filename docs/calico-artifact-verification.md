@@ -1,13 +1,13 @@
 # Calico Artifact and Installation Verification
 
 **Research date:** 2026-10-16
-**Status:** Research only. No Calico artifacts were downloaded, installed, or applied. The bootstrap, Terraform, Kubernetes, Helm, and CI files were not changed. No cluster runtime verification has been performed.
+**Status:** Research only. In DEV-003B-04A-12, the two Calico text manifests were downloaded to a temporary directory for inspection and byte verification; they were not installed or applied. The bootstrap, Terraform, Kubernetes, Helm, and CI files were not changed. No cluster runtime verification has been performed.
 
 ## Summary
 
 The exact upstream releases exist: k3s `v1.36.5+k3s1`, Calico `v3.33.0`, and Tigera Operator `v1.44.0`. Calico 3.33 documents Kubernetes 1.36 as tested and includes a K3s installation guide. The Tigera Operator 1.44.0 release identifies Calico 3.33.0. This is upstream support evidence for the Kubernetes minor-version pairing and the Calico/operator pairing; the sources reviewed do not provide a certification entry for the exact k3s patch `v1.36.5+k3s1`.
 
-**Recommendation: NO-GO for implementing or executing the bootstrap yet.** The K3s/Calico CNI paths and forwarding fields are now specified at the static configuration level in the research addendum below. Establish reviewable hashes for the exact raw manifests and image digests, validate host prerequisites, and later runtime-verify the CNI paths and forwarding behavior before deployment. The project continues to disable Flannel and k3s's policy controller, so no pod CNI or policy enforcement is available until Calico has been installed and verified. SEC-002 remains open.
+**Recommendation: NO-GO for implementing or executing the bootstrap yet.** The K3s/Calico CNI paths and forwarding fields are specified at the static configuration level in the research addendum below. The two manifest files now match their Git blobs in a pinned upstream commit, but their candidate SHA-256 values remain unapproved and the release signer has not been independently authenticated. Complete that review, verify image digests, validate host prerequisites, and later runtime-verify the CNI paths and forwarding behavior before deployment. The project continues to disable Flannel and k3s's policy controller, so no pod CNI or policy enforcement is available until Calico has been installed and verified. SEC-002 remains open.
 
 ## Repository evidence
 
@@ -37,9 +37,9 @@ Conclusion: the proposed versions are not invented, and the documented Kubernete
 
 | Artifact | Version and official source | Integrity evidence found | Status / concern |
 |---|---|---|---|
-| Calico CRD manifest, `v3_projectcalico_org.yaml` | Calico `v3.33.0`; [raw release-tag manifest](https://raw.githubusercontent.com/projectcalico/calico/v3.33.0/manifests/v3_projectcalico_org.yaml). The manifest includes the `Installation` CRD schema. | The source is under the Calico release tag. GitHub reports the `v3.33.0` tag/commit signature as verified. No standalone SHA-256 for this raw YAML was found in the release evidence reviewed. | Integrity can be established by independently verifying the signed release tag against a trusted key, comparing the file to the tagged Git object, and recording a locally computed SHA-256 after review. That verification has not been done here. |
+| Calico CRD manifest, `v3_projectcalico_org.yaml` | Calico `v3.33.0`; [raw release-tag manifest](https://raw.githubusercontent.com/projectcalico/calico/v3.33.0/manifests/v3_projectcalico_org.yaml). The manifest includes the `Installation` CRD schema. | The source is under the Calico release tag. GitHub reports the `v3.33.0` tag/commit signature as verified. No standalone SHA-256 for this raw YAML was found in the release evidence reviewed. | DEV-003B-04A-12/13 later matched the local file's Git blob ID to the pinned commit tree and recalculated its candidate SHA-256. This establishes byte correspondence to that source tree, not signer identity or deployment safety; the candidate hash remains unapproved. |
 | CRD Helm chart archive, `crd.projectcalico.org.v1-v3.33.0.tgz` | Calico `v3.33.0`; attached to the [official release](https://github.com/projectcalico/calico/releases/tag/v3.33.0). | GitHub lists SHA-256 `bbb9643633609941ef2a00b400798b2967a348d55ad8d1e20bd9f61c3ec3c73f`. This hash is for the chart archive only. | This archive is for the legacy `crd.projectcalico.org/v1` chart. It is not the chart or checksum for the native `projectcalico.org/v3` raw manifest selected by Calico's Kubernetes 1.36+ installation flow, and must not be substituted for that manifest. |
-| Tigera Operator manifest, `tigera-operator.yaml` | Calico `v3.33.0`; [raw release-tag manifest](https://raw.githubusercontent.com/projectcalico/calico/v3.33.0/manifests/tigera-operator.yaml). It references `quay.io/tigera/operator:v1.44.0`. | Same GitHub signed-tag/verified-commit evidence for the Calico source. No standalone SHA-256 for this raw YAML was found in the evidence reviewed. | Verify signed release source and compute/store a reviewed file hash before bootstrap use. The Operator Deployment sets `hostNetwork: true` and its ServiceAccount is bound to cluster-scoped RBAC roles. Its namespace has Pod Security enforcement labeled `privileged`, but the Operator container has no explicit `securityContext.privileged: true` setting in this manifest. Calico networking components rendered from the Installation may have separate privilege requirements; review those rendered resources before deployment. |
+| Tigera Operator manifest, `tigera-operator.yaml` | Calico `v3.33.0`; [raw release-tag manifest](https://raw.githubusercontent.com/projectcalico/calico/v3.33.0/manifests/tigera-operator.yaml). It references `quay.io/tigera/operator:v1.44.0`. | Same GitHub signed-tag/verified-commit evidence for the Calico source. No standalone SHA-256 for this raw YAML was found in the evidence reviewed. | DEV-003B-04A-12/13 later matched the local file's Git blob ID to the pinned commit tree and recalculated its candidate SHA-256. This establishes byte correspondence to that source tree, not signer identity or deployment safety; the candidate hash remains unapproved. The Operator Deployment sets `hostNetwork: true` and its ServiceAccount is bound to cluster-scoped RBAC roles. Its namespace has Pod Security enforcement labeled `privileged`, but the Operator container has no explicit `securityContext.privileged: true` setting in this manifest. Calico networking components rendered from the Installation may have separate privilege requirements; review those rendered resources before deployment. |
 | Calico `Installation` schema | Included in the v3.33.0 CRD manifest above; documented in the [Tigera Operator API reference](https://docs.tigera.io/calico/latest/reference/installation/api/). | Same source integrity as the CRD manifest. | The project resource now specifies the supported CNI paths and IP-forwarding field. Validate it against the pinned CRD before applying and verify the generated CNI config at runtime. |
 | Installation custom-resource example | [Official v3.33.0 example](https://raw.githubusercontent.com/projectcalico/calico/v3.33.0/manifests/custom-resources.yaml). | Same release-tag provenance; no separate file checksum found. | Its sample pool is `192.168.0.0/16`; do not use that value for this project. Retain the reviewed project CIDR `10.44.0.0/16` after checking all routed networks. |
 | Operator and Calico component images | Official version references: [Calico component versions](https://docs.tigera.io/calico/latest/reference/component-versions), [image options](https://docs.tigera.io/calico/latest/operations/image-options/alternate-registry), and [Calico 3.33 upgrade notes](https://docs.tigera.io/calico/latest/operations/upgrading/upgrade-notes). The tagged Operator manifest specifies `quay.io/tigera/operator:v1.44.0`; documented Calico image tags are `v3.33.0`. | No immutable per-image digest was verified in this research. The official [ImageSet guide](https://docs.tigera.io/calico/latest/operations/image-options/imageset) describes digest pinning, but its sample values are examples, not evidence for this installation. | Only the Operator image is explicit in the static Operator manifest. The Operator renders Calico workloads and selects images according to the Installation and enabled features. Calico 3.33 consolidated many former component images into `calico/calico`; do not reuse pre-3.33 image lists. Resolve the exact rendered image set and pin reviewed digests before deployment. |
@@ -295,3 +295,44 @@ printf '%s\n' "Both reviewed manifest hashes match"
 ```
 
 The directory comparison requires exactly the two named inputs; it does not accept another manifest as an implicit substitute. A successful local comparison confirms that the files match the approved local values, not that the approval process or upstream signer was trustworthy. Keep installation blocked unless the source/signature review and both independent approvals are complete. The previously documented image digest, host prerequisite, CNI, and runtime-validation blockers remain unresolved, so this procedure does not change the overall **NO-GO** bootstrap recommendation. SEC-002 remains open.
+
+## DEV-003B-04A-12/13 — Calico Manifest Acquisition and Independent Byte Verification
+
+**Verification scope:** The two text manifests below were acquired into `/private/tmp/cloudops-calico-manifests.A5CmGT` for static inspection only. Their bytes were compared with Git blob metadata from the pinned upstream commit. No checksum was approved; neither manifest was installed or applied. Earlier statements in this report that no artifact had been downloaded describe the earlier research stages and are superseded only as to this later, temporary acquisition.
+
+### Pinned upstream source
+
+- Official repository: [projectcalico/calico](https://github.com/projectcalico/calico)
+- Release: Calico `v3.33.0`
+- Pinned source commit: `fbaa371111636a37ecc82625fce8453064a7fff2`
+- Commit tree: `c89d2e2938fd38a829bbfd2a950687ff4f2f6fa7`
+- The files were retrieved from URLs containing the full commit SHA, not a mutable branch reference.
+- GitHub Git Data API commit and tree metadata identified both paths as regular blobs in this commit. The local Git object hashes, calculated with `git hash-object`, matched those tree blob IDs.
+
+| File | Commit-pinned source | Size | Candidate SHA-256 | Upstream tree Git blob | Result |
+|---|---|---:|---|---|---|
+| `v3_projectcalico_org.yaml` | [Pinned CRD manifest](https://raw.githubusercontent.com/projectcalico/calico/fbaa371111636a37ecc82625fce8453064a7fff2/manifests/v3_projectcalico_org.yaml) | 3,500,573 bytes | `5306c2c6d9fd6762d804f9da51c049b8269c33498a364c5df0eed555aba026bd` | `e65e9ad96fa06fa1016b075cfb26e7eae36ff253` | SHA-256 matched the earlier candidate measurement; local Git blob matched GitHub's blob ID for this path in the pinned commit tree. **Candidate hash remains unapproved.** |
+| `tigera-operator.yaml` | [Pinned Tigera Operator manifest](https://raw.githubusercontent.com/projectcalico/calico/fbaa371111636a37ecc82625fce8453064a7fff2/manifests/tigera-operator.yaml) | 20,554 bytes | `aef423b36aef8cf86567f92bbe5eea4b4ca105a6fc7dbf43de599c6fa70388ba` | `c191bea5cb2c16796227bc48689a4811d2122c57` | SHA-256 matched the earlier candidate measurement; local Git blob matched GitHub's blob ID for this path in the pinned commit tree. **Candidate hash remains unapproved.** |
+
+The SHA-256 values above are locally measured candidate values, not upstream-published checksums. The Git blob matches establish that these local bytes correspond to the files named by the pinned commit tree; they do not establish release safety or independently authenticate the tag signer.
+
+### Static inspection results
+
+The files were inspected as YAML and were not applied:
+
+- **Native v3 CRD manifest:** 39 YAML documents: 31 `CustomResourceDefinition` objects and 8 related admission policies/bindings. The `installations.operator.tigera.io` CRD is present.
+- **Tigera Operator manifest:** 7 Kubernetes resources, including a Namespace, ServiceAccount, RBAC resources, and Deployment. Its direct image reference is `quay.io/tigera/operator:v1.44.0`; the Deployment sets `TIGERA_OPERATOR_INIT_IMAGE_VERSION=v1.44.0`.
+- The Operator may create additional Calico component workloads. Their complete image references and immutable digests have not been independently pinned or verified from these static manifests.
+
+Successful YAML parsing and source-tree byte correspondence do not prove that either manifest is safe to deploy.
+
+### Remaining provenance and security limitations
+
+1. The Calico release-tag signature has not been independently verified using an authenticated signer key. GitHub's Verified badge is not equivalent to independent signer authentication.
+2. The candidate SHA-256 values are locally measured, not upstream-published checksums, and no separate reviewer has formally approved them. Keep the approved-checksum placeholders in the offline procedure unchanged.
+3. Matching Git blobs proves correspondence to the pinned upstream source tree, not that the manifests are safe to deploy.
+4. Operator-generated Calico image digests remain unresolved.
+5. K3s installer integrity and relevant target-host prerequisites remain unresolved.
+6. No cluster installation or runtime validation has occurred. **SEC-002 remains OPEN. Calico bootstrap remains NO-GO.**
+
+This addendum records acquisition and byte verification evidence only. It does not authorize Calico installation, change the offline verification gates, or approve either candidate checksum.
