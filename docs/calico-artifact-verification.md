@@ -336,3 +336,11 @@ Successful YAML parsing and source-tree byte correspondence do not prove that ei
 6. No cluster installation or runtime validation has occurred. **SEC-002 remains OPEN. Calico bootstrap remains NO-GO.**
 
 This addendum records acquisition and byte verification evidence only. It does not authorize Calico installation, change the offline verification gates, or approve either candidate checksum.
+
+## DEV-019 — Project Installation Resource Integrity Gate
+
+The Calico bootstrap now requires an explicit `APPROVED_INSTALLATION_SHA256` value in addition to the separately approved CRD and Operator hashes. It must contain exactly 64 hexadecimal characters. The script snapshots `k8s/calico/installation.yaml`, hashes that exact snapshot, and rejects a missing, malformed, or mismatched value before any Kubernetes command. Apply mode passes only the already-verified snapshot to `kubectl`.
+
+No Installation hash is embedded in the script or approved by this change. Calculate a candidate from the reviewed file, then independently review and approve the exact bytes and record the repository revision, source review, reviewer, and approval decision before supplying it. A matching SHA-256 proves consistency with the approved value; it does not authenticate the original source or signer, establish that the approval process was trustworthy, or prove the resource safe to deploy.
+
+Offline tests use temporary script and Installation fixtures plus a mocked `kubectl`; no cluster connection is made. This integrity gate closes one input-verification gap only. **SEC-002 remains OPEN. K3s and Calico installation remain NO-GO** pending the provenance, image digest, host prerequisite, cluster identity, recovery, and runtime checks documented above.

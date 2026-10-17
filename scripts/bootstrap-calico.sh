@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   printf '%s\n' \
     "Usage: $0 --validate-only | --apply" \
-    "Requires CALICO_ARTIFACT_DIR, KUBE_CONTEXT, APPROVED_CRD_SHA256, and APPROVED_OPERATOR_SHA256." >&2
+    "Requires CALICO_ARTIFACT_DIR, KUBE_CONTEXT, APPROVED_CRD_SHA256, APPROVED_OPERATOR_SHA256, and APPROVED_INSTALLATION_SHA256." >&2
 }
 
 fail() {
@@ -22,12 +22,16 @@ MODE=$1
 : "${KUBE_CONTEXT:?KUBE_CONTEXT is required; the current context is never implicit}"
 : "${APPROVED_CRD_SHA256:?APPROVED_CRD_SHA256 must be independently approved}"
 : "${APPROVED_OPERATOR_SHA256:?APPROVED_OPERATOR_SHA256 must be independently approved}"
+: "${APPROVED_INSTALLATION_SHA256:?APPROVED_INSTALLATION_SHA256 must be separately approved}"
 
 if [[ ! "$APPROVED_CRD_SHA256" =~ ^[[:xdigit:]]{64}$ ]]; then
   fail 'APPROVED_CRD_SHA256 must contain exactly 64 hexadecimal characters'
 fi
 if [[ ! "$APPROVED_OPERATOR_SHA256" =~ ^[[:xdigit:]]{64}$ ]]; then
   fail 'APPROVED_OPERATOR_SHA256 must contain exactly 64 hexadecimal characters'
+fi
+if [[ ! "$APPROVED_INSTALLATION_SHA256" =~ ^[[:xdigit:]]{64}$ ]]; then
+  fail 'APPROVED_INSTALLATION_SHA256 must contain exactly 64 hexadecimal characters'
 fi
 
 if [[ -L "$CALICO_ARTIFACT_DIR" || ! -d "$CALICO_ARTIFACT_DIR" ]]; then
@@ -111,14 +115,19 @@ sha256_file() {
 
 actual_crd_sha256=$(sha256_file "$STAGED_CRD_FILE")
 actual_operator_sha256=$(sha256_file "$STAGED_OPERATOR_FILE")
+actual_installation_sha256=$(sha256_file "$STAGED_INSTALLATION_FILE")
 approved_crd_sha256=$(printf '%s' "$APPROVED_CRD_SHA256" | tr '[:upper:]' '[:lower:]')
 approved_operator_sha256=$(printf '%s' "$APPROVED_OPERATOR_SHA256" | tr '[:upper:]' '[:lower:]')
+approved_installation_sha256=$(printf '%s' "$APPROVED_INSTALLATION_SHA256" | tr '[:upper:]' '[:lower:]')
 
 if [[ "$actual_crd_sha256" != "$approved_crd_sha256" ]]; then
   fail 'CRD manifest SHA-256 does not match its separately approved value'
 fi
 if [[ "$actual_operator_sha256" != "$approved_operator_sha256" ]]; then
   fail 'Operator manifest SHA-256 does not match its separately approved value'
+fi
+if [[ "$actual_installation_sha256" != "$approved_installation_sha256" ]]; then
+  fail 'Installation resource SHA-256 does not match its separately approved value'
 fi
 
 if [[ "$MODE" == '--validate-only' ]]; then

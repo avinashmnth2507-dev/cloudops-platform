@@ -64,7 +64,7 @@ The artifact directory must contain exactly these two non-empty regular files, w
 - `v3_projectcalico_org.yaml` — the native Calico v3 CRDs.
 - `tigera-operator.yaml` — the Tigera Operator manifest.
 
-Both files must come from the reviewed Calico `v3.33.0` source and provenance process documented in [`calico-artifact-verification.md`](calico-artifact-verification.md). The script requires separately approved SHA-256 values in `APPROVED_CRD_SHA256` and `APPROVED_OPERATOR_SHA256`; each must be exactly 64 hexadecimal characters. Values are external inputs, not embedded in the script. The candidate hashes recorded in the research report are not approved values and must not be copied into these variables without the required independent review. The source tag or a matching Git blob alone does not authenticate the signer.
+Both upstream files must come from the reviewed Calico `v3.33.0` source and provenance process documented in [`calico-artifact-verification.md`](calico-artifact-verification.md). The script requires separately approved SHA-256 values in `APPROVED_CRD_SHA256`, `APPROVED_OPERATOR_SHA256`, and `APPROVED_INSTALLATION_SHA256`; each must be exactly 64 hexadecimal characters. The Installation hash covers the exact bytes of the project's `k8s/calico/installation.yaml`. All values are explicit external inputs, not embedded in the script. Candidate hashes recorded in the research report are not approved values and must not be copied into these variables without independent review. Matching an approved SHA-256 proves byte consistency with that approved value; it does not authenticate the original source, verify the approver, or establish that the resource is safe to deploy.
 
 After the approved manifest files and values have been supplied, the local, non-cluster validation form is:
 
@@ -72,15 +72,16 @@ After the approved manifest files and values have been supplied, the local, non-
 export CALICO_ARTIFACT_DIR="/path/to/reviewed-calico-v3.33.0"
 export APPROVED_CRD_SHA256="<independently-approved-64-hex-value>"
 export APPROVED_OPERATOR_SHA256="<independently-approved-64-hex-value>"
+export APPROVED_INSTALLATION_SHA256="<independently-approved-64-hex-value>"
 export KUBE_CONTEXT="<explicit-reviewed-context>"
 bash scripts/bootstrap-calico.sh --validate-only
 ```
 
-Replace the placeholders only from an approved review record; the example values are deliberately invalid. The script computes each file's SHA-256 locally using `sha256sum` or macOS `shasum -a 256`, compares both values, and rejects missing, malformed, or mismatched inputs before any Kubernetes command. It performs no downloads. No checksum should be approved solely because it was calculated from a file fetched from the same source.
+Replace the placeholders only from an independent approval record; the example values are deliberately invalid. The script computes SHA-256 locally using `sha256sum` or macOS `shasum -a 256` and compares each snapshot to its separately approved value. It rejects missing, malformed, or mismatched hashes before any Kubernetes command. Approval should record the exact Installation file bytes, repository revision, source review, reviewer, and approval decision. A checksum calculated from the repository is only a candidate until independently reviewed; a match proves consistency with the approved value, not source authenticity. The script performs no downloads.
 
 The future installation order is CRD manifest apply, bounded wait for `installations.operator.tigera.io` to become established, Operator manifest apply, bounded Operator Deployment rollout check, then the repository's `Installation` resource. Readiness then requires the Calico status, `calico-node` DaemonSet, `calico-kube-controllers` Deployment, and all Kubernetes nodes to report ready within fixed timeouts. Before apply mode, the script resolves the explicitly supplied context from local kubeconfig; each subsequent cluster command uses that same context. The script does not switch to Flannel or another CNI.
 
-In apply mode, the two manifests and local Installation resource are copied into a mode-700 temporary directory. The approved hashes are checked against the copied upstream manifest bytes, and only these private snapshots are passed to `kubectl`. This avoids reopening mutable source paths after verification. The local Installation resource has no separate approved hash; its trust depends on the reviewed repository commit and checkout integrity. The context lookup confirms that the requested name exists in the active local kubeconfig, but does not authenticate the cluster identity. Verify the intended target independently before any separately authorized apply. This flow does not defend against a compromised host, shell, `kubectl`, kubeconfig, or a malicious but separately approved manifest; source review and checksum approval remain essential.
+In apply mode, both upstream manifests and the local Installation resource are copied into a mode-700 temporary directory. All three approved hashes are checked against those exact snapshots, and only the snapshots are passed to `kubectl`. This avoids reopening mutable source paths after verification. The context lookup confirms that the requested name exists in the active local kubeconfig, but does not authenticate the cluster identity. Verify the intended target independently before any separately authorized apply. This flow does not defend against a compromised host, shell, `kubectl`, kubeconfig, or a malicious but separately approved manifest; source review and independent checksum approval remain essential.
 
 ## Failure and partial-install recovery
 
@@ -131,7 +132,7 @@ The Calico `v3.33` [upgrade notes](https://docs.tigera.io/calico/latest/operatio
 
 Calico bootstrap remains **NO-GO**, and SEC-002 remains **OPEN**. Before requesting a separate installation authorization, all of the following are required:
 
-1. Independent provenance review of the pinned Calico source and formal approval of both manifest SHA-256 values. The existing candidate values remain unapproved.
+1. Independent provenance review of the pinned Calico source and formal approval of all three SHA-256 values: the CRD manifest, Operator manifest, and project Installation resource. The upstream candidate values remain unapproved, and no Installation checksum is pre-approved.
 2. A reviewed K3s installation design with architecture-specific binary integrity approval and no unverified mutable installer execution.
 3. A pinned and reviewed Operator and Calico component image inventory. The manifest names `quay.io/tigera/operator:v1.44.0`, but no immutable digest is approved; Operator-generated image references and digests are not fully established.
 4. Target-host checks for Linux kernel, CPU, memory, disk, netfilter/iptables, conntrack, IP-set, VXLAN, host IP forwarding, privileges, effective containerd CNI paths, and CIDR overlap.
