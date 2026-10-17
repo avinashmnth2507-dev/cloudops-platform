@@ -106,6 +106,28 @@ def test_missing_installer_artifact_fails_closed(k3s_inputs):
     assert 'exactly k3s and install.sh' in result.stderr
 
 
+def test_missing_artifact_directory_fails_closed(k3s_inputs, tmp_path):
+    _, env, _, _, _ = k3s_inputs
+    env['K3S_ARTIFACT_DIR'] = str(tmp_path / 'missing-artifacts')
+
+    result = _run_script(env)
+
+    assert result.returncode != 0
+    assert 'artifact directory must exist as a real directory' in result.stderr
+
+
+def test_non_directory_artifact_path_fails_closed(k3s_inputs, tmp_path):
+    _, env, _, _, _ = k3s_inputs
+    artifact_path = tmp_path / 'artifact-file'
+    artifact_path.write_text('not a directory\n', encoding='utf-8')
+    env['K3S_ARTIFACT_DIR'] = str(artifact_path)
+
+    result = _run_script(env)
+
+    assert result.returncode != 0
+    assert 'artifact directory must exist as a real directory' in result.stderr
+
+
 def test_symlinked_artifact_directory_fails_closed(k3s_inputs, tmp_path):
     artifact_dir, env, _, _, _ = k3s_inputs
     real_dir = tmp_path / 'real-artifacts'
@@ -249,6 +271,17 @@ def test_malformed_installer_commit_fails_closed(k3s_inputs):
     assert 'full 40-character hexadecimal commit ID' in result.stderr
 
 
+@pytest.mark.parametrize('malformed', ['g' * 40, 'a' * 39, 'a' * 41])
+def test_malformed_length_or_nonhex_installer_commit_fails_closed(k3s_inputs, malformed):
+    _, env, _, _, _ = k3s_inputs
+    env['K3S_INSTALLER_COMMIT'] = malformed
+
+    result = _run_script(env)
+
+    assert result.returncode != 0
+    assert 'full 40-character hexadecimal commit ID' in result.stderr
+
+
 def test_unavailable_systemd_prerequisite_fails_closed(k3s_inputs, tmp_path):
     _, env, command_path, _, _ = k3s_inputs
     reduced_path = tmp_path / 'no-systemctl'
@@ -279,6 +312,19 @@ def test_install_mode_refuses_even_validated_inputs_without_running_installer(k3
 
     assert result.returncode != 0
     assert 'installation is disabled' in result.stderr
+    assert not systemctl_marker.exists()
+    assert not installer_marker.exists()
+
+
+def test_install_mode_rejects_bad_checksum_before_any_installation_command(k3s_inputs):
+    _, env, _, systemctl_marker, installer_marker = k3s_inputs
+    env['APPROVED_K3S_BINARY_SHA256'] = '0' * 64
+
+    result = _run_script(env, '--install')
+
+    assert result.returncode != 0
+    assert 'K3s binary SHA-256 does not match' in result.stderr
+    assert 'installation is disabled' not in result.stderr
     assert not systemctl_marker.exists()
     assert not installer_marker.exists()
 

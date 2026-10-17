@@ -1,4 +1,7 @@
 aws_region    = "ap-south-1"
 project_name  = "cloudops"
+# Low-cost example only. t3.micro has 1 GiB RAM and is below the documented
+# K3s server / Calico single-host baseline; explicitly select and budget a
+# suitable instance before any separately authorized K3s/Calico deployment.
 instance_type = "t3.micro"
 ssh_cidr      = "YOUR_PUBLIC_IP/32"
