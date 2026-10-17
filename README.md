@@ -17,13 +17,13 @@
 | Status | Components |
 |---|---|
 | Implemented and locally tested | FastAPI metadata, health, readiness, status, info, and metrics endpoints; startup validation for display configuration; structured JSON request events; bounded route labels. The local suite covers all six endpoints. |
-| CI verified | GitHub Actions Run #5 passed for commit `f6ba78bcdda1a843e9cb33742826b46e98976f00`, including tests, linting, secret scanning, image build, and strict Trivy scanning. |
+| CI history | GitHub Actions Run #5 passed for commit `f6ba78bcdda1a843e9cb33742826b46e98976f00`. Run #17 is owner-reported as associated with the current commit; this local review did not independently query GitHub or verify its result. |
 | Configured, not deployed | Docker and Compose configuration; Terraform environment and development profiles; Kubernetes manifests; Helm chart; k3s and Calico configuration; Prometheus, Grafana, and Loki values. |
 | Planned or not verified | AWS and Kubernetes runtime behavior; Calico readiness and policy enforcement; HPA metrics behavior; Prometheus discovery and scraping; Grafana installation and dashboard provisioning; Loki log collection. |
 
 No Terraform-managed AWS infrastructure, Kubernetes cluster, Helm release, or monitoring stack has been deployed or activated from this repository. GHCR publishing is disabled, so the configured image references remain placeholders and no image has been published by this workflow. A successful CI run verifies the configured checks; it does not publish or deploy the application. **SEC-002 remains open:** the standalone NetworkPolicy denies application ingress, and the actual ingress-controller and Prometheus identities and CNI enforcement are not verified.
 
-The latest local validation on this working tree passed Ruff and pytest (128 tests). Use `scripts/verify-local.sh` to run the local checks. The local Python environment is 3.14; GitHub Actions uses Python 3.13. GitHub Actions Run #5 passed for the commit listed above; it predates these uncommitted changes. The successful CI run is separate from the disabled GHCR publishing job and from any cloud or cluster deployment.
+Run `scripts/verify-local.sh` to check the current working tree with its existing tools. The local Python environment is 3.14; GitHub Actions uses Python 3.13. Run #5 is historical and predates this commit. Run #17 is owner-reported as associated with this commit but has not been independently checked here. CI status, GHCR publishing, and deployment are separate: the publish job remains disabled, and no cloud or cluster deployment is established.
 
 ## Project Description
 
@@ -91,7 +91,9 @@ GitHub Actions Run #5 passed for commit `f6ba78bcdda1a843e9cb33742826b46e98976f0
 - A GHCR publish job exists, but its job-level condition is explicitly disabled. Its login and push steps do not run, and this workflow has not published an image.
 - The workflow has no AWS, Kubernetes, or infrastructure deployment job.
 
-The local virtual environment uses Python 3.14; the workflow selects Python 3.13. A previous local Trivy report found HIGH OS-package vulnerabilities; it is historical evidence. Run #5's strict Trivy scan passed for the commit above. Future image changes still require a fresh scan. Passing CI does not mean the image was published or the application was deployed.
+The main-branch sequence is source push → test job → image build and security scan → publishing skipped by the disabled gate.
+
+Run #17 is reported by the project owner as associated with the current expected commit; this repository-only review did not query GitHub and does not independently confirm the run's status or SHA. The local virtual environment uses Python 3.14; the workflow selects Python 3.13. A previous local Trivy report found HIGH OS-package vulnerabilities; it is historical evidence. Run #5's strict Trivy scan passed for its older commit. Future image changes still require a fresh scan. Passing CI does not mean the image was published or the application was deployed.
 
 ## Deployment Readiness
 
@@ -175,7 +177,16 @@ The proposed lab avoids EKS, NAT Gateway, RDS, and other managed services. EC2, 
 
 ## Portfolio Evidence
 
-Capture genuine screenshots after implementing and verifying components. No runtime screenshots are currently tracked. Never fabricate deployment evidence; see [portfolio evidence notes](docs/screenshots.md).
+Run the [local demonstration](docs/local-demo.md) only after starting the application manually. See the [portfolio evidence plan](docs/portfolio-evidence.md) and [completion checklist](docs/portfolio-completion-checklist.md) for evidence scope and status. Existing portfolio screenshots are local assets outside Git; do not present them as proof of a newer commit unless their contents and provenance support that claim. Never fabricate deployment evidence; see [screenshot guidance](docs/screenshots.md).
+
+## Operational Runbooks
+
+- [Local demonstration](docs/local-demo.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Helm offline validation](docs/helm.md)
+- [Deployment and infrastructure status](docs/deployment.md)
+- [Portfolio completion checklist](docs/portfolio-completion-checklist.md)
+- [Portfolio evidence plan](docs/portfolio-evidence.md)
 
 ## License
 

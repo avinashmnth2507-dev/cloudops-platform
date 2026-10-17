@@ -2,6 +2,16 @@
 
 The raw manifests demonstrate Deployment, Service, ConfigMap, Secret example, Ingress, HPA, ServiceAccount, RBAC and NetworkPolicy.
 
+## Offline static validation
+
+No cluster connection is needed to check the repository's Kubernetes YAML relationships. With the existing test environment, run:
+
+```bash
+.venv/bin/pytest -q tests/test_kubernetes_manifests.py
+```
+
+This parses the Kubernetes and monitoring YAML and checks the app Deployment/Service/Ingress selectors and ports, probe routes, namespace and ConfigMap references, resource request/limit relationships, runtime security context, NetworkPolicy intent, ServiceMonitor selectors, and dashboard metric names. It does not call `kubectl`, validate against an API server, or prove scheduling, CNI behavior, discovery, or enforcement. See [Helm offline validation](helm.md) for chart lint and render checks.
+
 ## Deployment prerequisites
 
 **Not approved for execution.** No Kubernetes cluster has been deployed from this repository. GHCR publishing is disabled, so no image has been published by this workflow; `YOUR_GITHUB_OWNER` and image tags are placeholders until publishing is explicitly enabled and completed or another immutable image is separately selected. A CI pass does not publish an image or deploy a cluster. The CNI and NetworkPolicy enforcement are unverified, and SEC-002 remains open. Do not apply these manifests until the image, cluster prerequisites, and network policy have been separately reviewed and authorized.

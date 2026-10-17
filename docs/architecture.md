@@ -5,11 +5,11 @@ CloudOps Platform is a portfolio project centered on a small FastAPI service. Th
 ## Implemented locally
 
 - FastAPI endpoints for application metadata, health, readiness, status, runtime information, and Prometheus metrics; structured JSON request events are written to stdout.
-- The local pytest suite has 17 passing tests, including coverage for all six application endpoints, metrics, request logging, and instrumentation-failure handling.
+- The local pytest suite covers all six application endpoints, metrics, request logging, instrumentation-failure handling, and offline configuration checks.
 - Dockerfile and Docker Compose configuration.
 - GitHub Actions Run #5 passed on commit `f6ba78bcdda1a843e9cb33742826b46e98976f00`, including the test job and the main-branch image build and strict scan. The GHCR publish job exists but is disabled; no image was published.
 
-The latest local Ruff and pytest checks passed (17 tests); local Python is 3.14 and the workflow uses Python 3.13. CI success verifies the workflow checks for that commit; it does not verify a currently running Compose container or deploy cloud or cluster infrastructure.
+Run #17 is reported by the project owner as associated with expected commit `27b884194ea7f58316f9561847503e3e082e0dc9`; this local review did not query GitHub or independently confirm its result. Run #5 remains historical evidence for its older commit. Local tests and static checks do not verify a currently running Compose container or deploy cloud or cluster infrastructure. The local Python environment is 3.14; the workflow uses Python 3.13.
 
 ## Prepared configuration — not deployed
 
@@ -59,6 +59,8 @@ flowchart TB
 ```
 
 Run #5 passed for commit `f6ba78bcdda1a843e9cb33742826b46e98976f00`. On main pushes, the workflow builds and scans an image after tests succeed. A publish job is present but guarded by an always-false condition, so it does not log in to GHCR or publish the image. Kubernetes and Helm image references still contain placeholders and are not deployable as written.
+
+The project owner reports that Run #17 is associated with expected commit `27b884194ea7f58316f9561847503e3e082e0dc9`. No local run metadata was available, so this repository review does not independently verify that association or the run result.
 
 ## Deployment prerequisites and limits
 

@@ -2,9 +2,21 @@
 
 ## Current deployment status and safety
 
-No Terraform-managed AWS infrastructure, Kubernetes cluster, Helm release, or monitoring stack has been deployed or activated from this repository. GitHub Actions Run #5 passed CI for commit `f6ba78bcdda1a843e9cb33742826b46e98976f00`, but CI does not publish or deploy the application. GHCR publishing is disabled and the configured image references are placeholders. **The commands below are reference examples, not approval to execute them.** Terraform can create billable resources; Kubernetes deployment also remains blocked by unverified CNI readiness and open SEC-002. Obtain separate review and authorization before using infrastructure or cluster commands.
+No Terraform-managed AWS infrastructure, Kubernetes cluster, Helm release, or monitoring stack has been deployed or activated from this repository. GitHub Actions Run #5 passed CI for commit `f6ba78bcdda1a843e9cb33742826b46e98976f00`, but CI does not publish or deploy the application. The project owner reports Run #17 as associated with expected commit `27b884194ea7f58316f9561847503e3e082e0dc9`; this local documentation update did not query GitHub or independently verify the result. GHCR publishing is disabled and configured image references are placeholders. **The infrastructure and cluster commands below are reference examples, not approval to execute them.** Terraform can create billable resources; Kubernetes deployment remains blocked by unverified CNI readiness and open SEC-002. Obtain separate review and authorization before using infrastructure or cluster commands.
 
 ## Local
+
+With the existing virtual environment available, run the application manually on loopback and use the bounded demonstration script:
+
+```bash
+.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+In another terminal, run `scripts/demo-local.sh`. The script does not start or stop the server. See [local demo instructions](local-demo.md).
+
+For offline checks without running the application, use `scripts/verify-local.sh`; it runs local Python, shell, Helm, and Terraform formatting checks when their tools are already available.
+
+The commands below are setup instructions only. This project did not create a virtual environment or install dependencies during the current documentation and demo work:
 
 ```bash
 python3 -m venv .venv
@@ -60,6 +72,16 @@ The script validates local K3s and installer inputs but refuses installation. Te
 **This configuration is not ready or approved for deployment.** Disabling Flannel requires a separately installed and working CNI. Calico `v3.33.0` is only a candidate; it is not installed, and Calico bootstrap remains NO-GO. With `--disable-network-policy`, Calico must also provide NetworkPolicy enforcement. Before any separately authorized deployment, resolve K3s artifact and installer provenance, Calico integrity and image pins, CNI installation and readiness, external CIDR overlap, host OS/kernel and networking prerequisites, and EC2 capacity. Until the CNI is installed and verified, pod networking and NetworkPolicy enforcement are unavailable. Keep SEC-002 open and do not enable NetworkPolicy based on configuration alone.
 
 Bundled Traefik, CoreDNS, and Metrics Server remain enabled; this configuration does not pass flags to disable them. Their operation must still be verified after the CNI is ready.
+
+## Offline infrastructure validation
+
+Terraform formatting can be checked locally without initializing providers or contacting AWS:
+
+```bash
+terraform fmt -check -recursive terraform
+```
+
+This validates formatting only. It does not validate provider behavior, create a plan, confirm account permissions, or provision resources. No AWS resources have been provisioned as part of this project workflow. K3s and Calico bootstrap scripts retain explicit installation refusal; resolve their artifact provenance, image integrity, host prerequisites, CNI readiness, recovery plan, and SEC-002 blockers before any separately authorized deployment.
 
 ## Cleanup
 
