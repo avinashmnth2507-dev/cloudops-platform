@@ -29,11 +29,9 @@ resource "aws_instance" "this" {
   iam_instance_profile   = var.instance_profile_name
   user_data              = <<-USERDATA
     #!/bin/bash
-    set -eux
-    apt-get update -y
-    apt-get install -y curl
-    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.36.5+k3s1 INSTALL_K3S_EXEC="server --cluster-cidr=10.44.0.0/16 --service-cidr=10.43.0.0/16 --cluster-dns=10.43.0.10 --flannel-backend=none --disable-network-policy" sh -s -
-    systemctl enable k3s
+    set -eu
+    printf '%s\n' "K3s bootstrap blocked: no reviewed offline installation route is approved. No K3s installer was executed." >&2
+    exit 1
   USERDATA
   root_block_device {
     volume_size = 20

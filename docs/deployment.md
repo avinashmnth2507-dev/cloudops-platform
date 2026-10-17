@@ -39,17 +39,17 @@ terraform apply
 
 ## Kubernetes bootstrap configuration
 
-Both the Terraform EC2 bootstrap and `scripts/bootstrap-k3s.sh` pin k3s to `v1.36.5+k3s1` and configure:
+The intended K3s release is `v1.36.5+k3s1` on Linux amd64. The offline validation script records the current network intent:
 
 - Pod CIDR: `10.44.0.0/16`
 - Service CIDR: `10.43.0.0/16`
 - Cluster DNS: `10.43.0.10`
 - Flannel: disabled with `--flannel-backend=none`
-- k3s embedded NetworkPolicy controller: disabled with `--disable-network-policy`
+- K3s embedded NetworkPolicy controller: disabled with `--disable-network-policy`
 
-The configured AWS VPC (`10.42.0.0/16`) and public subnet (`10.42.1.0/24`) are unchanged. The pod and service ranges do not overlap those repository-defined ranges. Any VPN, peered, or other externally routed CIDRs still need to be checked for overlap.
+The script validates local K3s and installer inputs but refuses installation. Terraform EC2 user data now exits before executing an installer. **Neither path installs K3s.** The Terraform AMI filter selects x86_64, but the target AMI and runtime are not deployed or tested. The configured AWS VPC (`10.42.0.0/16`) and public subnet (`10.42.1.0/24`) remain unchanged. The pod and service ranges do not overlap those repository-defined ranges; VPN, peered, and other external CIDRs still require an overlap check.
 
-**This configuration is not ready or approved for deployment.** Disabling Flannel requires a separately installed and working CNI. Calico `v3.33.0` is only a candidate; it is not installed or pinned by this project change. With `--disable-network-policy`, Calico must also provide the NetworkPolicy enforcement engine. Before any separately authorized deployment, decide and verify Calico's installation method, version, IP pool and routing/encapsulation mode; check external CIDR overlap, host OS/kernel and networking prerequisites, and EC2 capacity. Until a CNI is installed and verified, pod networking and NetworkPolicy enforcement are unavailable. Keep SEC-002 open and do not enable the NetworkPolicy based on configuration alone.
+**This configuration is not ready or approved for deployment.** Disabling Flannel requires a separately installed and working CNI. Calico `v3.33.0` is only a candidate; it is not installed, and Calico bootstrap remains NO-GO. With `--disable-network-policy`, Calico must also provide NetworkPolicy enforcement. Before any separately authorized deployment, resolve K3s artifact and installer provenance, Calico integrity and image pins, CNI installation and readiness, external CIDR overlap, host OS/kernel and networking prerequisites, and EC2 capacity. Until the CNI is installed and verified, pod networking and NetworkPolicy enforcement are unavailable. Keep SEC-002 open and do not enable NetworkPolicy based on configuration alone.
 
 Bundled Traefik, CoreDNS, and Metrics Server remain enabled; this configuration does not pass flags to disable them. Their operation must still be verified after the CNI is ready.
 
