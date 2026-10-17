@@ -2,7 +2,7 @@ services:
   app:
     build: .
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       APP_NAME: CloudOps Platform
       APP_VERSION: 1.0.0
@@ -12,3 +12,5 @@ services:
       - /tmp
     security_opt:
       - no-new-privileges:true
+    cap_drop:
+      - ALL

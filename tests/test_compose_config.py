@@ -33,7 +33,7 @@ def test_compose_keeps_the_existing_app_service_and_production_build_context():
 
     assert context in {'.', './'}
     assert dockerfile == 'Dockerfile'
-    assert service['ports'] == ['8000:8000']
+    assert service['ports'] == ['127.0.0.1:8000:8000']
 
 
 def test_compose_keeps_read_only_filesystem_and_temporary_path():
@@ -45,11 +45,13 @@ def test_compose_keeps_read_only_filesystem_and_temporary_path():
     assert '/tmp' in tmpfs_paths
 
 
-def test_compose_does_not_enable_privilege_or_host_bind_mounts():
+def test_compose_drops_all_capabilities_and_does_not_enable_privilege_or_host_access():
     service = _app_service()
 
+    assert service['cap_drop'] == ['ALL']
     assert service.get('privileged', False) is not True
     assert not service.get('cap_add')
+    assert service.get('network_mode') != 'host'
     for mount in service.get('volumes', []):
         if isinstance(mount, dict):
             assert mount.get('type', 'volume') != 'bind'
@@ -60,6 +62,12 @@ def test_compose_does_not_enable_privilege_or_host_bind_mounts():
             source = fields[0]
             assert not source.startswith(('/', '.', '~'))
             assert re.match(r'^[A-Za-z]:[\\/]', source) is None
+
+
+def test_compose_does_not_override_the_non_root_image_user():
+    service = _app_service()
+
+    assert service.get('user') in (None, '10001:10001')
 
 
 def test_compose_disables_privilege_escalation():
