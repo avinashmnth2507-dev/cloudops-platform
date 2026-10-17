@@ -5,8 +5,11 @@ metadata:
 spec:
   cni:
     type: Calico
+    binDir: /var/lib/rancher/k3s/data/cni
+    confDir: /var/lib/rancher/k3s/agent/etc/cni/net.d
   calicoNetwork:
     bgp: Disabled
+    containerIPForwarding: Enabled
     ipPools:
       - name: default-ipv4-ippool
         cidr: 10.44.0.0/16

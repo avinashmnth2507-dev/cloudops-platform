@@ -22,6 +22,8 @@ Official release references:
 
 These are version references, not a cryptographic integrity check. Before an installation is approved, verify the release source and checksums or signatures, and review/pin container image digests where supported. No external manifests, checksums, or image digests are vendored in this repository. The operator and CRD installation must remain a separate, explicitly version-pinned step; this repository file contains only the Calico `Installation` custom resource.
 
+The Installation configures the CNI binary directory as `/var/lib/rancher/k3s/data/cni`, the CNI configuration directory as `/var/lib/rancher/k3s/agent/etc/cni/net.d`, and `containerIPForwarding: Enabled`. These paths match the documented K3s defaults used by the current bootstrap, which does not set a custom `--data-dir`. If the K3s data directory or containerd CNI paths change, update these values to match the effective runtime configuration. These are prepared settings only: after an authorized installation, verify the effective containerd paths and generated Calico CNI config, including `container_settings.allow_ip_forwarding: true`. Container forwarding is separate from host forwarding; verify the host sysctl and Felix behavior as described in the runtime prerequisites below. No Calico installation or runtime verification is claimed here.
+
 ## Proposed network pool and routing mode
 
 The `Installation` resource explicitly selects the Calico CNI, disables Calico BGP, and defines the IPv4 workload pool as `10.44.0.0/16`, matching the configured k3s `--cluster-cidr`. The pool is distinct from the repository's VPC CIDR `10.42.0.0/16` and k3s service CIDR `10.43.0.0/16`. VPN, peered-VPC, and other externally routed CIDRs still need an overlap check.

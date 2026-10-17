@@ -7,7 +7,7 @@
 
 The exact upstream releases exist: k3s `v1.36.5+k3s1`, Calico `v3.33.0`, and Tigera Operator `v1.44.0`. Calico 3.33 documents Kubernetes 1.36 as tested and includes a K3s installation guide. The Tigera Operator 1.44.0 release identifies Calico 3.33.0. This is upstream support evidence for the Kubernetes minor-version pairing and the Calico/operator pairing; the sources reviewed do not provide a certification entry for the exact k3s patch `v1.36.5+k3s1`.
 
-**Recommendation: NO-GO for implementing or executing the bootstrap yet.** Resolve the K3s/Calico CNI path mapping, enable the forwarding behavior K3s documents, establish reviewable hashes for the exact raw manifests and image digests, and validate host prerequisites first. The project continues to disable Flannel and k3s's policy controller, so no pod CNI or policy enforcement is available until Calico has been installed and verified. SEC-002 remains open.
+**Recommendation: NO-GO for implementing or executing the bootstrap yet.** The K3s/Calico CNI paths and forwarding fields are now specified at the static configuration level in the research addendum below. Establish reviewable hashes for the exact raw manifests and image digests, validate host prerequisites, and later runtime-verify the CNI paths and forwarding behavior before deployment. The project continues to disable Flannel and k3s's policy controller, so no pod CNI or policy enforcement is available until Calico has been installed and verified. SEC-002 remains open.
 
 ## Repository evidence
 
@@ -17,7 +17,7 @@ The inspected local configuration shows:
 
 - `scripts/bootstrap-k3s.sh` and `terraform/modules/ec2/main.tf` set k3s to `v1.36.5+k3s1`, pod CIDR `10.44.0.0/16`, service CIDR `10.43.0.0/16`, `--flannel-backend=none`, and `--disable-network-policy`.
 - Those bootstrap paths install k3s only. They do not install Calico CRDs, the Tigera Operator, or an `Installation` resource.
-- `k8s/calico/installation.yaml` selects Calico CNI, disables BGP, and configures `10.44.0.0/16` with VXLAN and outgoing NAT. It does not set CNI binary/config directories or `containerIPForwarding`.
+- `k8s/calico/installation.yaml` selects Calico CNI, disables BGP, configures `10.44.0.0/16` with VXLAN and outgoing NAT, and now explicitly sets the documented K3s CNI directories and `containerIPForwarding: Enabled`. These are configuration values, not runtime evidence.
 - `docs/calico-installation.md` describes the intended order and prerequisites, but explicitly has no artifact integrity data and does not claim a runtime deployment.
 
 The configured pod CIDR matches the Calico IP pool. The pod CIDR and service CIDR do not overlap each other. The repository also documents VPC CIDR `10.42.0.0/16`; VPN, peered-VPC, host, and other externally routed ranges still need an overlap check.
@@ -40,7 +40,7 @@ Conclusion: the proposed versions are not invented, and the documented Kubernete
 | Calico CRD manifest, `v3_projectcalico_org.yaml` | Calico `v3.33.0`; [raw release-tag manifest](https://raw.githubusercontent.com/projectcalico/calico/v3.33.0/manifests/v3_projectcalico_org.yaml). The manifest includes the `Installation` CRD schema. | The source is under the Calico release tag. GitHub reports the `v3.33.0` tag/commit signature as verified. No standalone SHA-256 for this raw YAML was found in the release evidence reviewed. | Integrity can be established by independently verifying the signed release tag against a trusted key, comparing the file to the tagged Git object, and recording a locally computed SHA-256 after review. That verification has not been done here. |
 | CRD Helm chart archive, `crd.projectcalico.org.v1-v3.33.0.tgz` | Calico `v3.33.0`; attached to the [official release](https://github.com/projectcalico/calico/releases/tag/v3.33.0). | GitHub lists SHA-256 `bbb9643633609941ef2a00b400798b2967a348d55ad8d1e20bd9f61c3ec3c73f`. This hash is for the chart archive only. | This is usable integrity evidence only if the future design chooses and verifies that exact archive. It is not the checksum for the raw CRD YAML manifest. |
 | Tigera Operator manifest, `tigera-operator.yaml` | Calico `v3.33.0`; [raw release-tag manifest](https://raw.githubusercontent.com/projectcalico/calico/v3.33.0/manifests/tigera-operator.yaml). It references `quay.io/tigera/operator:v1.44.0`. | Same GitHub signed-tag/verified-commit evidence for the Calico source. No standalone SHA-256 for this raw YAML was found in the evidence reviewed. | Verify signed release source and compute/store a reviewed file hash before bootstrap use. The Operator Deployment sets `hostNetwork: true` and its ServiceAccount is bound to cluster-scoped RBAC roles. Its namespace has Pod Security enforcement labeled `privileged`, but the Operator container has no explicit `securityContext.privileged: true` setting in this manifest. Calico networking components rendered from the Installation may have separate privilege requirements; review those rendered resources before deployment. |
-| Calico `Installation` schema | Included in the v3.33.0 CRD manifest above; documented in the [Tigera Operator API reference](https://docs.tigera.io/calico/latest/reference/installation/api/). | Same source integrity as the CRD manifest. | Validate the repository's custom resource against the exact pinned CRD/schema before applying it. The project's existing resource has no explicit CNI paths or IP-forwarding setting. |
+| Calico `Installation` schema | Included in the v3.33.0 CRD manifest above; documented in the [Tigera Operator API reference](https://docs.tigera.io/calico/latest/reference/installation/api/). | Same source integrity as the CRD manifest. | The project resource now specifies the supported CNI paths and IP-forwarding field. Validate it against the pinned CRD before applying and verify the generated CNI config at runtime. |
 | Installation custom-resource example | [Official v3.33.0 example](https://raw.githubusercontent.com/projectcalico/calico/v3.33.0/manifests/custom-resources.yaml). | Same release-tag provenance; no separate file checksum found. | Its sample pool is `192.168.0.0/16`; do not use that value for this project. Retain the reviewed project CIDR `10.44.0.0/16` after checking all routed networks. |
 | Operator and Calico component images | Official version references: [Calico component versions](https://docs.tigera.io/calico/latest/reference/component-versions), [image options](https://docs.tigera.io/calico/latest/operations/image-options/alternate-registry), and [Calico 3.33 upgrade notes](https://docs.tigera.io/calico/latest/operations/upgrading/upgrade-notes). Release-tag manifest specifies operator `quay.io/tigera/operator:v1.44.0`; Calico components use the `v3.33.0` release line. | No immutable per-image digest was verified in this research. The official [ImageSet guide](https://docs.tigera.io/calico/latest/operations/image-options/imageset) recommends pinning images by registry digest. | For the current default CNI mode (`All`), the component image set must include the operator and the Calico images used for node/CNI and upstream CNI plugins. Calico 3.33 consolidates many components into `calico/calico` and publishes some images separately; do not reuse older image lists. Obtain the exact effective list for this Installation and pin verified digests before deployment. |
 
@@ -59,23 +59,23 @@ The official ImageSet guide obtains the effective image list by running the vers
 | Area | Verified documentation | Project implication |
 |---|---|---|
 | K3s custom CNI flags | K3s says a custom CNI should use `--flannel-backend=none` and recommends `--disable-network-policy` to avoid policy-controller conflicts. | Existing bootstrap flags match the documented pattern. With Flannel and the embedded controller disabled, Calico must become healthy before any workload networking or policy enforcement is relied on. |
-| CNI directories | [K3s documents](https://docs.k3s.io/networking/multus-ipams) its CNI binary directory as `/var/lib/rancher/k3s/data/cni` and config directory as `/var/lib/rancher/k3s/agent/etc/cni/net.d`. The [Tigera Operator API](https://docs.tigera.io/calico/latest/reference/installation/api/) defaults to `/opt/cni/bin` and `/etc/cni/net.d` for other providers. | This is an unresolved path mismatch in the sources/configuration reviewed. The Calico K3s quickstart establishes a supported K3s installation path, but the current project resource does not explicitly reconcile these paths. Confirm whether this exact K3s release exposes compatible paths or configure the Operator to the actual K3s paths before implementing bootstrap logic. Do not assume a symlink. |
-| CNI IP forwarding | K3s's [custom CNI guidance](https://docs.k3s.io/networking/basic-network-options) says the generated Calico CNI configuration should set `container_settings.allow_ip_forwarding: true`. The Tigera API exposes `calicoNetwork.containerIPForwarding`, whose default is `Disabled`. | The project's `Installation` omits this field, so the documented default is disabled. Correct the resource after confirming the v3.33 CRD behavior; verify the generated CNI config has forwarding enabled. |
+| CNI directories | [K3s documents](https://docs.k3s.io/networking/multus-ipams) its CNI binary directory as `/var/lib/rancher/k3s/data/cni` and its example config directory as `/var/lib/rancher/k3s/agent/etc/cni/net.d`. The [v3.33.0 Tigera schema](https://raw.githubusercontent.com/projectcalico/calico/v3.33.0/manifests/v3_projectcalico_org.yaml) supports `cni.binDir` and `cni.confDir` and defaults to generic provider paths. | The proposed explicit K3s path overrides are specified in the addendum. Confirm effective paths and CNI operation on the target runtime before deployment; no symlink or successful CNI installation is assumed. |
+| CNI IP forwarding | K3s's [custom CNI guidance](https://docs.k3s.io/networking/basic-network-options) requires generated Calico CNI configuration to allow container IP forwarding. The v3.33.0 schema exposes `calicoNetwork.containerIPForwarding`, default `Disabled`. | The addendum specifies `containerIPForwarding: Enabled`. Confirm generated CNI configuration and host forwarding behavior during runtime validation. |
 | Kernel and host | [Calico requirements](https://docs.tigera.io/calico/latest/getting-started/kubernetes/requirements) specify Linux kernel 5.10+ and required networking dependencies; nodes must permit management of Calico interfaces. | The actual target kernel, netfilter/iptables, conntrack/IP-set and VXLAN support, IP forwarding, privileges, and filesystem paths are not verified by repository source. The Docker Desktop Linux VM also needs its own host-kernel and resource validation; the Mac host kernel is not the Kubernetes node kernel. |
 | VXLAN | Calico requires VXLAN support for the selected mode. Calico documents bidirectional UDP 4789 between nodes for VXLAN. | One node does not exercise inter-node VXLAN traffic. For any multi-node expansion, allow UDP 4789 only between node identities/security groups and check MTU. No such runtime validation has occurred. |
 | CIDRs | k3s uses pod `10.44.0.0/16` and service `10.43.0.0/16`; Calico pool is `10.44.0.0/16`; repository documentation lists VPC `10.42.0.0/16`. | The pod/service/VPC ranges are pairwise distinct as listed. Check VPN, peered, host, and external routes before installation. Preserve the configured CIDRs unless a network review approves a coordinated change. |
 | Single node and capacity | Calico's K3s quickstart explicitly describes a single-node test/development setup and directs production installations to its multi-node guide. | A single-node run can validate CNI, DNS, local pod/service traffic, and policy behavior, but cannot establish availability, inter-node VXLAN, or production capacity. The project's small-instance and 8 GB laptop constraints require resource budgeting; do not add the full monitoring stack during initial CNI validation. |
 
-The Calico Operator defaults are provider-sensitive in some areas; its API does not document a K3s-specific provider value. This does not negate Calico's K3s quickstart, but means the quickstart, K3s path documentation, and the project's Operator resource need to be reconciled explicitly before claiming a reproducible install.
+The Calico Operator defaults are provider-sensitive in some areas; its API does not document a K3s-specific provider value. The addendum reconciles the documented paths at the configuration level with explicit supported fields. This does not claim the quickstart's generated resources or these overrides have been runtime-tested.
 
 ## Proposed installation and readiness sequence
 
 The first three Calico steps follow the official K3s quickstart for Kubernetes 1.36+: CRDs, Operator, then the `Installation` custom resource. The bounded timeouts below are proposed operational limits, not timeout values mandated by upstream.
 
-1. **Preflight k3s host and release.** Verify the target is supported Linux/amd64 with kernel 5.10+, required netfilter, conntrack, IP-set and VXLAN support, usable IP forwarding, sufficient CPU/memory/disk, and correct CNI directories. Verify the pinned k3s release artifact and its integrity before installation. Keep the documented pod/service CIDRs and both CNI-disabling flags. Fail if any check is inconclusive; do not fall back to Flannel.
+1. **Preflight k3s host and release.** Verify the target is supported Linux/amd64 with kernel 5.10+, required netfilter, conntrack, IP-set and VXLAN support, usable IP forwarding, sufficient CPU/memory/disk, and the effective CNI directories. Verify the pinned k3s release artifact and its integrity before installation. Keep the documented pod/service CIDRs and both CNI-disabling flags. Fail if any check is inconclusive; do not fall back to Flannel.
 2. **Install CRDs.** Verify the chosen v3.33.0 CRD artifact before applying it. Wait up to 120 seconds for `installations.operator.tigera.io` (and required Calico CRDs) to report `Established`; stop on timeout or API/schema error.
 3. **Install the Tigera Operator.** Verify the v3.33.0 Operator manifest and pin the Operator image digest. Apply it only after CRDs are established. Wait up to 180 seconds for the Operator deployment to become available; stop on pull, RBAC, or readiness errors.
-4. **Validate and apply Installation.** Validate `k8s/calico/installation.yaml` against the pinned CRD. Preserve the pod CIDR and VXLAN selection. Resolve and explicitly configure the K3s CNI paths and enable the documented CNI container IP forwarding behavior before applying. Do not apply if either remains unknown.
+4. **Validate and apply Installation.** Validate `k8s/calico/installation.yaml` against the pinned CRD. Preserve the pod CIDR and VXLAN selection. Use the explicit K3s CNI path overrides and `containerIPForwarding: Enabled` specified in the addendum. Do not apply if the effective runtime paths differ from those values or schema validation fails.
 5. **Wait for Calico components.** Wait up to 300 seconds for `TigeraStatus/calico` to show `Available=True`, `Progressing=False`, and `Degraded=False`; also require the single-node `calico-node` DaemonSet to have all desired pods ready. Stop on timeout; do not retry indefinitely.
 6. **Wait for node readiness.** After Calico is healthy, wait up to 180 seconds for the Kubernetes node to be `Ready`. Waiting before CNI installation can fail simply because no CNI is present; waiting after the Calico phase makes the condition meaningful.
 7. **Verify networking and DNS.** Use a small isolated test namespace and short-lived test pods to check pod-to-pod traffic, Service routing, CoreDNS name resolution, and outbound behavior required by the application. Bound each probe and fail on unexpected results. Do not install application or monitoring workloads during this baseline test.
@@ -87,8 +87,7 @@ The K3s quickstart uses unbounded `watch` examples for sample pods and node read
 
 | Blocker | Minimum resolution | Runtime evidence eventually required? |
 |---|---|---|
-| CNI path mapping is unresolved between K3s documentation and Tigera defaults. | Confirm path behavior for pinned k3s and explicitly configure the Operator `binDir`/`confDir` or document verified path compatibility. | Yes: inspect the actual node paths and prove CNI invocation works. |
-| CNI container IP forwarding is omitted; Tigera API default is `Disabled`, while K3s says Calico CNI config should allow forwarding. | Set the supported v3.33 Installation field to `Enabled`; validate rendered CNI configuration and host forwarding. | Yes: verify generated config and pod/service traffic. |
+| CNI path overrides and forwarding are configured but not runtime-verified. | Validate the rendered configuration and effective host paths/sysctls after an authorized installation. | Yes: inspect actual node paths, generated configuration, and pod/service traffic. |
 | Raw CRD and Operator manifests have no published per-file SHA-256 identified in this audit. | Independently verify the signed Calico release source, review exact files, and record their hashes; alternatively use a verified official CRD chart archive where appropriate. | No cluster needed for artifact verification; runtime validation still follows. |
 | Required image set and immutable digests are unknown. | Resolve the exact image list for this Installation; pin registry digests in Operator/`ImageSet` configuration. | Registry metadata validation is needed; a cluster is needed to confirm the Operator uses the intended ImageSet. |
 | Bootstrap fetches the mutable `get.k3s.io` installer script directly. | Pin/review the installer content or use an approved verified k3s binary/install artifact; retain the exact release version and checksums. | Installation test is needed after source integrity is settled. |
@@ -97,4 +96,73 @@ The K3s quickstart uses unbounded `watch` examples for sample pods and node read
 
 ## Decision
 
-**NO-GO for DEV-003B-04B bootstrap implementation at this point.** The release versions are valid and their documented compatibility is promising, but the current resource has a concrete forwarding mismatch and unresolved CNI directory behavior. Image digests and raw manifest integrity records are also absent. The next development task should first resolve and document the K3s CNI paths and forwarding fields against the exact pinned CRD, then add reviewed artifact hashes and image digests. Only after static validation should a separately authorized, isolated runtime validation be planned. No AWS deployment is recommended at this stage.
+**NO-GO for DEV-003B-04B bootstrap implementation at this point.** The release versions are valid and their documented compatibility is promising; the Installation resource now contains the CNI path and forwarding corrections specified in the addendum, but their behavior requires runtime verification. Image digests, raw manifest integrity records, and target host prerequisites also remain outstanding. Complete static artifact/schema validation before planning separately authorized, isolated runtime validation. No AWS deployment is recommended at this stage.
+
+## DEV-003B-04A-04 Research Addendum — K3s CNI Paths and IP Forwarding
+
+**Research date:** 2026-10-17
+
+**Scope:** Resolve the directory and forwarding configuration questions for the existing K3s/Calico candidate. This is documentation-only research; no bootstrap or infrastructure was modified, and no runtime installation was tested.
+
+### K3s CNI directories
+
+The repository pins K3s `v1.36.5+k3s1`, does not set a custom `--data-dir`, and uses the default K3s data root. For this K3s generation, the official K3s documentation gives these paths:
+
+| Purpose | K3s path with the repository's default data directory | Evidence |
+|---|---|---|
+| CNI binaries | `/var/lib/rancher/k3s/data/cni` | K3s documents `$DATA_DIR/data/cni`, with `/var/lib/rancher/k3s/data/cni` as the default. Since October 2024, this stable path replaces the older release-hash-specific `data/$HASH/bin` path. |
+| CNI configuration | `/var/lib/rancher/k3s/agent/etc/cni/net.d` | K3s deployment examples use this directory for CNI configuration. The effective runtime path should still be checked from the target K3s/containerd configuration during later runtime validation. |
+
+Sources: [K3s Multus and IPAM documentation](https://docs.k3s.io/networking/multus-ipams), [K3s server options (`--data-dir`)](https://docs.k3s.io/cli/server), and [K3s agent options (`--data-dir`)](https://docs.k3s.io/cli/agent). If `--data-dir` is changed, the K3s-managed paths are rooted under that data directory and the Calico values must be adjusted to match. Older K3s releases used a hash-specific binary directory; the pinned 2026 release is after the documented October 2024 path change.
+
+The [v3.33.0 CRD schema](https://raw.githubusercontent.com/projectcalico/calico/v3.33.0/manifests/v3_projectcalico_org.yaml) explicitly supports `spec.cni.binDir` and `spec.cni.confDir`; the [Tigera Operator API reference](https://docs.tigera.io/calico/latest/reference/installation/api/) describes those fields as the CNI binary and config paths. With the existing `cni.type: Calico` and default `installMode: All`, these values direct the operator's CNI installation to the runtime's directories. The schema states that the paths must match the container runtime; absent a provider-specific override, its defaults are `/opt/cni/bin` and `/etc/cni/net.d`. The schema does not document a K3s provider-specific default. The [Calico 3.33 K3s quickstart](https://docs.tigera.io/calico/latest/getting-started/kubernetes/k3s/quickstart) confirms a supported K3s installation flow but does not show explicit path overrides. Calico's [general system requirements](https://docs.tigera.io/calico/latest/getting-started/kubernetes/requirements) also state the generic Kubernetes CNI directories. Those generic defaults do not match the K3s paths above, so the project should explicitly set both supported Installation fields to the K3s runtime paths instead of relying on defaults or an assumed symlink.
+
+K3s documentation reviewed does not describe separate CNI directories for server and agent modes. The repository installs a single server node. A custom `--data-dir` or containerd configuration can change the effective paths, so a future implementation must derive or verify the target runtime paths rather than hard-code the default paths for every installation.
+
+The proposed additive `Installation` fragment is:
+
+```yaml
+spec:
+  cni:
+    type: Calico
+    binDir: /var/lib/rancher/k3s/data/cni
+    confDir: /var/lib/rancher/k3s/agent/etc/cni/net.d
+```
+
+This is a configuration recommendation, not a claim that the operator's generated host mounts or the CNI plugin have been runtime-verified. Before applying it in a future authorized test, confirm the effective K3s/containerd paths on the target node and confirm that the pinned v3.33.0 operator writes the binaries and config into those paths. Do not add a `KubernetesProvider: K3s` value; the inspected API/schema does not document that provider value.
+
+### Container and host IP forwarding
+
+The v3.33.0 CRD schema supports `spec.calicoNetwork.containerIPForwarding`; it controls forwarding for containers in the generated CNI configuration and defaults to `Disabled`. K3s's [custom CNI guidance](https://docs.k3s.io/networking/basic-network-options) explicitly says the Calico CNI configuration should set `container_settings.allow_ip_forwarding` to `true`. Therefore the project Installation should explicitly set:
+
+```yaml
+spec:
+  calicoNetwork:
+    containerIPForwarding: Enabled
+```
+
+This container-level CNI setting is separate from host forwarding. Calico's [Felix `IPForwarding` documentation](https://docs.tigera.io/calico/latest/reference/felix/configuration) says Felix manages host sysctls for IP forwarding, that workload networking requires it, and that the default is `Enabled`. Calico's [IPv4 host requirements](https://docs.tigera.io/calico/latest/networking/ipam/ipv6) identify `net.ipv4.conf.all.forwarding=1` as the required host state for IPv4 forwarding. The host must permit Calico/Felix to establish that state. No additional host sysctl override is justified by the repository evidence; check the effective setting and Felix behavior at runtime rather than assuming the host satisfies it.
+
+The combined proposed additions, shown separately from the existing pool and BGP settings, are:
+
+```yaml
+spec:
+  cni:
+    type: Calico
+    binDir: /var/lib/rancher/k3s/data/cni
+    confDir: /var/lib/rancher/k3s/agent/etc/cni/net.d
+  calicoNetwork:
+    containerIPForwarding: Enabled
+```
+
+### Compatibility and future validation
+
+- The pinned K3s release embeds Kubernetes `1.36.5`; Calico 3.33 lists Kubernetes 1.36 as tested and publishes a K3s quickstart. The Tigera Operator v1.44.0 / Calico v3.33.0 pairing is documented in the release evidence above. This is version-level documentation evidence, not runtime testing of this exact K3s patch and host.
+- The existing pod CIDR `10.44.0.0/16` matches the Calico pool; the service CIDR `10.43.0.0/16` is distinct. VXLAN remains the configured encapsulation. The K3s custom-CNI flags `--flannel-backend=none` and `--disable-network-policy` match K3s guidance for an externally managed CNI/policy engine. These settings do not establish that Calico has been installed or is enforcing policy.
+- In later runtime validation, inspect the effective containerd CNI binary/config paths and the generated Calico conflist in the actual configured CNI directory. Confirm `container_settings.allow_ip_forwarding` is `true`, and confirm the host forwarding sysctl state and Calico component readiness. Then test pod/service/DNS connectivity and both permitted and denied traffic in a disposable namespace with explicit NetworkPolicies. Keep the existing application policy unchanged and do not disable or broadly bypass policy enforcement for testing.
+
+### Resolution status
+
+**The two configuration corrections are sufficiently specified for a future manifest/bootstrap implementation:** set the supported `binDir` and `confDir` fields to the K3s runtime paths, and set the supported `containerIPForwarding` field to `Enabled`. Static evidence supports the field names, defaults, and proposed values. Runtime validation remains required for effective host paths, generated CNI configuration, host sysctl state, pod networking, and policy enforcement.
+
+This addendum updates only the earlier CNI-directory and container-forwarding findings: both corrections are now sufficiently specified at the static configuration level. The report's overall **NO-GO** for bootstrap implementation or execution remains because artifact integrity records, immutable image digests, target host prerequisites, and runtime validation remain outstanding. SEC-002 remains open.
