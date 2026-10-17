@@ -31,7 +31,7 @@ Use the existing environment only:
 
 `scripts/verify-local.sh` runs these checks together with shell syntax, optional Helm lint/render, and optional Terraform formatting. If a command is unavailable, do not install packages as a workaround for a review failure; record the skipped check.
 
-For a GitHub Actions failure, review the failing job and step for the exact commit. Run #5 is historical for an earlier commit. Run #17 is owner-reported for the current expected commit but has not been independently queried in this repository workflow. CI success does not imply image publishing or deployment.
+For a GitHub Actions failure, review the failing job and step for the exact commit. Run `39019245360` passed for `068f3c8c67e754a19a092c79764a7b24fa40c0c1`; run #5 is historical for an earlier commit. CI success does not imply image publishing or deployment. The publish job remains disabled.
 
 ## Docker build or Trivy scan failure
 
@@ -79,7 +79,7 @@ Confirm the target context before any cluster access. These commands do not prov
 
 ## K3s or Calico installation is blocked
 
-The K3s and Calico bootstrap paths intentionally refuse installation. Do not bypass the refusal or attempt a fallback CNI. The remaining blockers include approved artifact provenance and checksums, immutable image references, host prerequisites, cluster identity, runtime CNI readiness, recovery planning, and SEC-002. See [Calico installation status](calico-installation.md). No cloud or cluster resources are established by this repository documentation.
+The K3s bootstrap script explicitly refuses installation. The Calico script has a guarded `--apply` mode after its local input checks, but Calico installation remains NO-GO and is not authorized for this project state; do not run `--apply` or attempt a fallback CNI. The remaining blockers include separately approved artifact checksums, immutable image references, host prerequisites, cluster identity, runtime CNI readiness, recovery planning, and SEC-002. See [Calico installation status](calico-installation.md). No cloud or cluster resources are established by this repository documentation.
 
 ## Terraform formatting or deployment questions
 

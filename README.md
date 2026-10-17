@@ -17,13 +17,13 @@
 | Status | Components |
 |---|---|
 | Implemented and locally tested | FastAPI metadata, health, readiness, status, info, and metrics endpoints; startup validation for display configuration; structured JSON request events; bounded route labels. The local suite covers all six endpoints. |
-| CI history | GitHub Actions Run #5 passed for commit `f6ba78bcdda1a843e9cb33742826b46e98976f00`. Run #17 is owner-reported as associated with the current commit; this local review did not independently query GitHub or verify its result. |
+| CI verified | GitHub Actions run [39019245360](https://github.com/avinashmnth2507-dev/cloudops-platform/actions/runs/39019245360) passed for commit `068f3c8c67e754a19a092c79764a7b24fa40c0c1`; test and image jobs succeeded, publishing was skipped. |
 | Configured, not deployed | Docker and Compose configuration; Terraform environment and development profiles; Kubernetes manifests; Helm chart; k3s and Calico configuration; Prometheus, Grafana, and Loki values. |
 | Planned or not verified | AWS and Kubernetes runtime behavior; Calico readiness and policy enforcement; HPA metrics behavior; Prometheus discovery and scraping; Grafana installation and dashboard provisioning; Loki log collection. |
 
 No Terraform-managed AWS infrastructure, Kubernetes cluster, Helm release, or monitoring stack has been deployed or activated from this repository. GHCR publishing is disabled, so the configured image references remain placeholders and no image has been published by this workflow. A successful CI run verifies the configured checks; it does not publish or deploy the application. **SEC-002 remains open:** the standalone NetworkPolicy denies application ingress, and the actual ingress-controller and Prometheus identities and CNI enforcement are not verified.
 
-Run `scripts/verify-local.sh` to check the current working tree with its existing tools. The local Python environment is 3.14; GitHub Actions uses Python 3.13. Run #5 is historical and predates this commit. Run #17 is owner-reported as associated with this commit but has not been independently checked here. CI status, GHCR publishing, and deployment are separate: the publish job remains disabled, and no cloud or cluster deployment is established.
+Run `scripts/verify-local.sh` to check the current working tree with its existing tools. The local Python environment is 3.14; GitHub Actions uses Python 3.13. Run #5 is historical and predates the verified run for commit `068f3c8`. CI status, GHCR publishing, and deployment are separate: the publish job remains disabled, and no cloud or cluster deployment is established. The [local verification report](docs/local-verification-report.md) records the app/container findings for that commit.
 
 ## Project Description
 
@@ -34,6 +34,17 @@ The target deployment architecture is a proposal. The [architecture page](docs/a
 ## Project Components
 
 The repository contains the application, Docker configuration, GitHub Actions workflow, Terraform modules, Kubernetes manifests, a Helm chart, Prometheus/Grafana configuration, Loki values, security examples, tests, and supporting documentation. These files represent a mix of locally tested code and deployment preparation; they do not mean the cloud or cluster components are running.
+
+## Technology Stack
+
+| Area | Technologies and current scope |
+|---|---|
+| Application | Python 3.13, FastAPI, Uvicorn, Pydantic settings |
+| Tests and quality | pytest, Ruff, deterministic API and configuration tests |
+| Container delivery | Docker, Docker Compose, non-root Alpine runtime image; image builds and scans run in GitHub Actions |
+| CI security | GitHub Actions, Gitleaks, Trivy HIGH/CRITICAL failure gate; GHCR publishing is disabled |
+| Infrastructure and orchestration | Terraform, Kubernetes, Helm configuration; none is deployed from this workflow |
+| Observability | Structured JSON request logs and Prometheus application metrics; Prometheus/Grafana/Loki services are not deployed |
 
 ## Application
 
@@ -46,7 +57,7 @@ The repository contains the application, Docker configuration, GitHub Actions wo
 | `/api/v1/info` | Runtime information |
 | `/metrics` | Prometheus metrics |
 
-The current tests cover all six endpoints.
+The current tests cover all six endpoints. The latest recorded local suite has 139 passing tests; run `scripts/verify-local.sh` to repeat the offline checks with the existing tools.
 
 ## Local Development
 
@@ -84,16 +95,14 @@ docker compose up --build
 
 ## GitHub Actions
 
-GitHub Actions Run #5 passed for commit `f6ba78bcdda1a843e9cb33742826b46e98976f00`:
+GitHub Actions run [39019245360](https://github.com/avinashmnth2507-dev/cloudops-platform/actions/runs/39019245360) passed for commit `068f3c8c67e754a19a092c79764a7b24fa40c0c1`:
 
 - Pull requests run dependency installation, Ruff, pytest, and Gitleaks.
-- Pushes to `main` run those checks, build the image in the CI runner, and scan it with Trivy for HIGH and CRITICAL vulnerabilities. Run #5 passed these checks.
+- Pushes to `main` run those checks, build the image in the CI runner, and scan it with Trivy for HIGH and CRITICAL vulnerabilities. For this run, both `test` and `image` jobs succeeded; the image build and Trivy scan steps succeeded.
 - A GHCR publish job exists, but its job-level condition is explicitly disabled. Its login and push steps do not run, and this workflow has not published an image.
 - The workflow has no AWS, Kubernetes, or infrastructure deployment job.
 
-The main-branch sequence is source push → test job → image build and security scan → publishing skipped by the disabled gate.
-
-Run #17 is reported by the project owner as associated with the current expected commit; this repository-only review did not query GitHub and does not independently confirm the run's status or SHA. The local virtual environment uses Python 3.14; the workflow selects Python 3.13. A previous local Trivy report found HIGH OS-package vulnerabilities; it is historical evidence. Run #5's strict Trivy scan passed for its older commit. Future image changes still require a fresh scan. Passing CI does not mean the image was published or the application was deployed.
+The main-branch sequence is source push → test job → image build and security scan → publishing skipped by the disabled gate. In run `39019245360`, the `publish` job and the image-export/checksum/upload steps were skipped. The local virtual environment uses Python 3.14; the workflow selects Python 3.13. A previous local Trivy report found HIGH OS-package vulnerabilities; it is historical evidence. Future image changes still require a fresh scan. Passing CI does not mean the image was published or the application was deployed.
 
 ## Deployment Readiness
 
@@ -177,12 +186,14 @@ The proposed lab avoids EKS, NAT Gateway, RDS, and other managed services. EC2, 
 
 ## Portfolio Evidence
 
-Run the [local demonstration](docs/local-demo.md) only after starting the application manually. See the [portfolio evidence plan](docs/portfolio-evidence.md) and [completion checklist](docs/portfolio-completion-checklist.md) for evidence scope and status. Existing portfolio screenshots are local assets outside Git; do not present them as proof of a newer commit unless their contents and provenance support that claim. Never fabricate deployment evidence; see [screenshot guidance](docs/screenshots.md).
+Run the [local demonstration](docs/local-demo.md) only after starting the application manually. See the [local verification report](docs/local-verification-report.md), [portfolio evidence index](docs/portfolio-evidence.md), [completion checklist](docs/portfolio-completion-checklist.md), and [recruiter-facing project summary](docs/portfolio-project-summary.md). Existing portfolio screenshots are local assets outside Git; the evidence index describes their contents and limitations. Do not present them as proof of a newer commit unless their contents and provenance support that claim. Never fabricate deployment evidence; see [screenshot guidance](docs/screenshots.md).
 
 ## Operational Runbooks
 
 - [Local demonstration](docs/local-demo.md)
+- [Local verification report](docs/local-verification-report.md)
 - [Troubleshooting](docs/troubleshooting.md)
+- [Security controls and limits](docs/security.md)
 - [Helm offline validation](docs/helm.md)
 - [Deployment and infrastructure status](docs/deployment.md)
 - [Portfolio completion checklist](docs/portfolio-completion-checklist.md)

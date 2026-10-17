@@ -32,7 +32,7 @@ The following examples issue only bounded GET requests. Run them only when an ap
 
 ```bash
 for path in / /health /ready /api/v1/status /api/v1/info /metrics; do
-  curl --silent --show-error --max-time 3 --max-filesize 65536 \
+  curl --noproxy '*' --silent --show-error --max-time 3 --max-filesize 65536 \
     --output /dev/null \
     --write-out "$path HTTP %{http_code} content-type %{content_type}\n" \
     "http://127.0.0.1:8000$path"
@@ -42,7 +42,7 @@ done
 To inspect only the application metric definitions and series from the text exposition:
 
 ```bash
-curl --silent --show-error --max-time 3 --max-filesize 65536 \
+curl --noproxy '*' --silent --show-error --max-time 3 --max-filesize 65536 \
   http://127.0.0.1:8000/metrics \
   | grep -E '^# (HELP|TYPE) cloudops_http_(requests_total|request_duration_seconds)|^cloudops_http_(requests_total|request_duration_seconds)(_bucket|_sum|_count)?\{'
 ```
