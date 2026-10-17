@@ -42,6 +42,10 @@ export RUFF_CACHE_DIR="$VERIFY_TEMP_ROOT/ruff-cache"
 export XDG_CACHE_HOME="$VERIFY_TEMP_ROOT/xdg-cache"
 export PYTHONDONTWRITEBYTECODE=1
 
+# Test-only, syntactically valid reference at a reserved invalid registry domain.
+# It is used only for offline chart lint/render checks; it is not a real image.
+HELM_TEST_IMAGE_REFERENCE='registry.example.invalid/cloudops-platform@sha256:0000000000000000000000000000000000000000000000000000000000000000'
+
 printf '%s\n' 'Running Ruff...'
 .venv/bin/ruff check .
 
@@ -54,9 +58,10 @@ for script in scripts/bootstrap-calico.sh scripts/bootstrap-k3s.sh scripts/verif
 done
 
 if command -v helm >/dev/null 2>&1; then
-  printf '%s\n' 'Running local Helm lint and default template rendering...'
-  helm lint helm/cloudops
-  helm template cloudops helm/cloudops >/dev/null
+  printf '%s\n' 'Running local Helm lint and template rendering with the test-only digest fixture...'
+  helm lint helm/cloudops --set-string "image.reference=$HELM_TEST_IMAGE_REFERENCE"
+  helm template cloudops helm/cloudops \
+    --set-string "image.reference=$HELM_TEST_IMAGE_REFERENCE" >/dev/null
 else
   printf '%s\n' 'SKIP: Helm CLI is unavailable; install nothing for this check.'
 fi

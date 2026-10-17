@@ -5,11 +5,16 @@
     "replicaCount": { "type": "integer", "minimum": 0 },
     "image": {
       "type": "object",
+      "required": ["reference"],
       "properties": {
-        "repository": { "type": "string", "minLength": 1 },
-        "tag": { "type": "string", "minLength": 1 },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+([.-][a-z0-9]+)*(:[0-9]+)?(/[a-z0-9]+([._-][a-z0-9]+)*)+@sha256:[a-f0-9]{64}$"
+        },
         "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
-      }
+      },
+      "additionalProperties": false
     },
     "serviceAccount": {
       "type": "object",

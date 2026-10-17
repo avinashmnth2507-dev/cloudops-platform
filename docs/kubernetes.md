@@ -14,9 +14,9 @@ This parses the Kubernetes and monitoring YAML and checks the app Deployment/Ser
 
 ## Deployment prerequisites
 
-**Not approved for execution.** No Kubernetes cluster has been deployed from this repository. GHCR publishing is disabled, so no image has been published by this workflow; `YOUR_GITHUB_OWNER` and image tags are placeholders until publishing is explicitly enabled and completed or another immutable image is separately selected. A CI pass does not publish an image or deploy a cluster. The CNI and NetworkPolicy enforcement are unverified, and SEC-002 remains open. Do not apply these manifests until the image, cluster prerequisites, and network policy have been separately reviewed and authorized.
+**Not approved for execution.** No Kubernetes cluster has been deployed from this repository. GHCR publishing is disabled, and no approved application image is known to be published. The standalone Deployment intentionally has an empty `image` field; do not apply it until a separately reviewed and approved digest-pinned image reference is supplied. Use the full form `registry/repository@sha256:<64 lowercase hexadecimal characters>`. A configured reference does not prove that an image was published, is accessible, or was approved. Image configuration, image publication, and cluster deployment are separate steps. The CNI and NetworkPolicy enforcement are unverified, and SEC-002 remains open.
 
-Before a future authorized deployment, replace `YOUR_GITHUB_OWNER` and the image tag with the owner and immutable reference of an image that has actually been published and approved.
+For the standalone manifest, keep the checked-in base empty and create a deployment-specific overlay or rendered copy that supplies the approved immutable reference. Inspect the resulting manifest before any separately authorized apply. Never substitute a tag-only reference or treat a syntactically valid digest as proof of publication.
 
 The following `kubectl apply` commands are future examples only; they create or change cluster resources:
 

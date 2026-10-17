@@ -21,7 +21,7 @@
 | Configured, not deployed | Docker and Compose configuration; Terraform environment and development profiles; Kubernetes manifests; Helm chart; k3s and Calico configuration; Prometheus, Grafana, and Loki values. |
 | Planned or not verified | AWS and Kubernetes runtime behavior; Calico readiness and policy enforcement; HPA metrics behavior; Prometheus discovery and scraping; Grafana installation and dashboard provisioning; Loki log collection. |
 
-No Terraform-managed AWS infrastructure, Kubernetes cluster, Helm release, or monitoring stack has been deployed or activated from this repository. GHCR publishing is disabled, so the configured image references remain placeholders and no image has been published by this workflow. A successful CI run verifies the configured checks; it does not publish or deploy the application. **SEC-002 remains open:** the standalone NetworkPolicy denies application ingress, and the actual ingress-controller and Prometheus identities and CNI enforcement are not verified.
+No Terraform-managed AWS infrastructure, Kubernetes cluster, Helm release, or monitoring stack has been deployed or activated from this repository. GHCR publishing is disabled, the standalone Deployment image is intentionally empty, and the Helm default requires an explicit digest-pinned reference. No image has been published by this workflow. A successful CI run verifies the configured checks; it does not publish or deploy the application. **SEC-002 remains open:** the standalone NetworkPolicy denies application ingress, and the actual ingress-controller and Prometheus identities and CNI enforcement are not verified.
 
 Run `scripts/verify-local.sh` to check the current working tree with its existing tools. The local Python environment is 3.14; GitHub Actions uses Python 3.13. Run #5 is historical and predates the verified run for commit `068f3c8`. CI status, GHCR publishing, and deployment are separate: the publish job remains disabled, and no cloud or cluster deployment is established. The [local verification report](docs/local-verification-report.md) records the app/container findings for that commit.
 
@@ -106,7 +106,7 @@ The main-branch sequence is source push → test job → image build and securit
 
 ## Deployment Readiness
 
-> **Do not run the infrastructure or cluster examples below yet.** The Terraform bootstrap disables Flannel and k3s's embedded NetworkPolicy controller, but this repository does not install Calico automatically. Calico's version and host/runtime compatibility still require verification. The application image reference is a placeholder, the ingress is HTTP-only, and SEC-002 remains open. Review the [deployment prerequisites](docs/deployment.md), [Calico preparation](docs/calico-installation.md), [Kubernetes security notes](docs/kubernetes.md), and [monitoring prerequisites](docs/monitoring.md) before any separately authorized deployment.
+> **Do not run the infrastructure or cluster examples below yet.** The Terraform bootstrap disables Flannel and k3s's embedded NetworkPolicy controller, but this repository does not install Calico automatically. Calico's version and host/runtime compatibility still require verification. The application image must be supplied as an approved immutable digest, the ingress is HTTP-only, and SEC-002 remains open. Review the [deployment prerequisites](docs/deployment.md), [Calico preparation](docs/calico-installation.md), [Kubernetes security notes](docs/kubernetes.md), and [monitoring prerequisites](docs/monitoring.md) before any separately authorized deployment.
 
 ## AWS Infrastructure
 
@@ -116,7 +116,7 @@ For a future, separately reviewed deployment, copy `terraform/environments/dev/t
 
 ## Kubernetes
 
-Raw manifests are under `k8s/`; the application Helm chart is under `helm/cloudops`. The example image currently contains `YOUR_GITHUB_OWNER` and the mutable `latest` tag. It cannot be treated as a published deployable image. GHCR publishing remains disabled.
+Raw manifests are under `k8s/`; the application Helm chart is under `helm/cloudops`. The standalone Deployment keeps its image field empty, and Helm requires a full `registry/repository@sha256:<64 lowercase hexadecimal characters>` reference. GHCR publishing remains disabled, and no approved image is known to be published.
 
 The following are **future reference examples only, not approved to execute now**. The default-deny standalone NetworkPolicy is intentionally omitted from the apply list because it blocks application ingress and Prometheus scraping until verified, narrowly scoped allow rules are designed. Do not apply it unchanged.
 

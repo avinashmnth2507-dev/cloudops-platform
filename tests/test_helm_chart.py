@@ -9,13 +9,21 @@ import yaml
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CHART = REPOSITORY_ROOT / 'helm' / 'cloudops'
 HELM = shutil.which('helm')
+# Reserved .invalid registry and fictitious digest; never use for deployment.
+TEST_ONLY_IMAGE_REFERENCE = 'registry.example.invalid/cloudops-platform@sha256:' + '0' * 64
 
 pytestmark = pytest.mark.skipif(HELM is None, reason='Helm CLI is not installed')
 
 
-def _helm_template(*arguments: str) -> subprocess.CompletedProcess[str]:
+def _helm_template(
+    *arguments: str, use_test_image: bool = True
+) -> subprocess.CompletedProcess[str]:
+    command = [HELM, 'template', 'cloudops', str(CHART)]
+    if use_test_image:
+        command.extend(['--set-string', f'image.reference={TEST_ONLY_IMAGE_REFERENCE}'])
+    command.extend(arguments)
     return subprocess.run(
-        [HELM, 'template', 'cloudops', str(CHART), *arguments],
+        command,
         check=False,
         capture_output=True,
         text=True,
@@ -27,9 +35,15 @@ def _resources(rendered: str) -> list[dict]:
     return [document for document in yaml.safe_load_all(rendered) if document]
 
 
-def test_helm_lint_passes_for_default_chart():
+def test_helm_lint_passes_with_test_only_digest_fixture():
     result = subprocess.run(
-        [HELM, 'lint', str(CHART)],
+        [
+            HELM,
+            'lint',
+            str(CHART),
+            '--set-string',
+            f'image.reference={TEST_ONLY_IMAGE_REFERENCE}',
+        ],
         check=False,
         capture_output=True,
         text=True,
@@ -39,7 +53,7 @@ def test_helm_lint_passes_for_default_chart():
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_default_helm_render_has_consistent_service_deployment_and_security():
+def test_helm_render_with_test_fixture_preserves_service_and_security():
     result = _helm_template()
 
     assert result.returncode == 0, result.stderr
@@ -50,6 +64,7 @@ def test_default_helm_render_has_consistent_service_deployment_and_security():
     pod = deployment['spec']['template']
     container = pod['spec']['containers'][0]
 
+    assert container['image'] == TEST_ONLY_IMAGE_REFERENCE
     assert deployment['spec']['selector']['matchLabels'] == pod['metadata']['labels']
     assert service['spec']['selector'] == deployment['spec']['selector']['matchLabels']
     assert service['spec']['ports'][0]['targetPort'] == container['ports'][0]['containerPort']
@@ -66,6 +81,59 @@ def test_default_helm_render_has_consistent_service_deployment_and_security():
     assert 'NetworkPolicy' not in {resource['kind'] for resource in resources}
     assert 'ServiceMonitor' not in {resource['kind'] for resource in resources}
     assert 'Ingress' not in {resource['kind'] for resource in resources}
+
+
+def test_default_helm_render_fails_without_an_explicit_image_reference():
+    result = _helm_template(use_test_image=False)
+
+    assert result.returncode != 0
+    assert '/image/' in result.stderr
+
+
+@pytest.mark.parametrize(
+    ('image_reference', 'case'),
+    [
+        ('', 'empty'),
+        (
+            'ghcr.io/YOUR_GITHUB_OWNER/cloudops-platform@sha256:' + '0' * 64,
+            'placeholder',
+        ),
+        ('registry.example.invalid/cloudops-platform:latest', 'latest tag'),
+        ('registry.example.invalid/cloudops-platform:1.2.3', 'tag only'),
+        ('not a valid image reference', 'malformed'),
+    ],
+)
+def test_invalid_image_references_fail_helm_render(image_reference: str, case: str):
+    result = _helm_template(
+        '--set-string',
+        f'image.reference={image_reference}',
+        use_test_image=False,
+    )
+
+    assert result.returncode != 0, case
+
+
+def test_valid_digest_pinned_image_reference_renders():
+    result = _helm_template()
+
+    assert result.returncode == 0, result.stderr
+    deployment = next(
+        resource for resource in _resources(result.stdout) if resource['kind'] == 'Deployment'
+    )
+    container = deployment['spec']['template']['spec']['containers'][0]
+    assert container['image'] == TEST_ONLY_IMAGE_REFERENCE
+
+
+def test_deployment_template_rejects_invalid_reference_without_schema_validation():
+    result = _helm_template(
+        '--skip-schema-validation',
+        '--set-string',
+        'image.reference=registry.example.invalid/cloudops-platform:latest',
+        use_test_image=False,
+    )
+
+    assert result.returncode != 0
+    assert 'sha256 digest' in result.stderr
 
 
 def test_network_policy_enabled_without_verified_selectors_fails_closed():

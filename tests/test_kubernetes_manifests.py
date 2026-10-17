@@ -79,6 +79,13 @@ def test_deployment_service_and_ingress_selectors_and_ports_match():
     }
 
 
+def test_standalone_deployment_has_no_default_image():
+    deployment = _load_yaml(K8S / 'deployment.yaml')
+    container = deployment['spec']['template']['spec']['containers'][0]
+
+    assert container['image'] == ''
+
+
 def test_probe_routes_exist_in_the_fastapi_application():
     deployment = _load_yaml(K8S / 'deployment.yaml')
     container = deployment['spec']['template']['spec']['containers'][0]
