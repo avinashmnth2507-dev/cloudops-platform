@@ -220,3 +220,78 @@ Still unresolved are the full pinned commit SHAs and local verification of the s
 ### Decision
 
 **NO-GO for implementing or executing the Calico bootstrap.** The official releases and version pairing are established, and the exact K3s binary SHA-256 is visible in the official release asset listing. However, the manifest-path raw files still lack separately verified file hashes, the current installer script is mutable, and the exact Operator-rendered image set and immutable image digests have not been established. The legacy v1 CRD chart checksum does not close the native-v3 manifest integrity gap. Resolve those static pins and review them before implementation; later authorized runtime validation is still required. SEC-002 remains open and no infrastructure has been deployed.
+
+## DEV-003B-04A-09 — Offline Verification of the Calico v3.33.0 Manifests
+
+The two expected manifest files for the planned Kubernetes 1.36+ manifest installation are:
+
+| Local filename | Versioned upstream source | Purpose and version relationship |
+|---|---|---|
+| `v3_projectcalico_org.yaml` | [Calico `v3.33.0` CRD manifest](https://raw.githubusercontent.com/projectcalico/calico/v3.33.0/manifests/v3_projectcalico_org.yaml) | Native `projectcalico.org/v3` CRDs for Calico `v3.33.0`. |
+| `tigera-operator.yaml` | [Calico `v3.33.0` Tigera Operator manifest](https://raw.githubusercontent.com/projectcalico/calico/v3.33.0/manifests/tigera-operator.yaml) | Operator manifest distributed with the Calico `v3.33.0` release; it references `quay.io/tigera/operator:v1.44.0`, the Operator version listed for Calico 3.33. |
+
+The [official Calico quickstart](https://docs.tigera.io/calico/latest/getting-started/kubernetes/quickstart) names these exact URLs and uses the native v3 CRD manifest for Kubernetes 1.36 or later, followed by the Tigera Operator manifest. The URLs are pinned to the Calico `v3.33.0` Git tag rather than a mutable branch. This release-tag association identifies the intended source location; a Git tag by itself does not prove artifact authenticity. The Operator version relationship is also listed in the [Calico 3.33 component versions](https://docs.tigera.io/calico/latest/reference/component-versions).
+
+### Required review and approval
+
+Before future bootstrap use, obtain the two files through an independently reviewed acquisition process and place only those exact files in a dedicated local directory. For each file, reviewers must validate the release source and relevant signature/provenance evidence using a trusted key or other independently established trust path, inspect the exact bytes, and separately approve a SHA-256 value. Record the filename, full source commit SHA, approved hash, review date, approver, and evidence. These are **reviewed project-local pins**, not upstream-published checksums; no checksum is supplied or fabricated here. Do not approve a value solely because it was calculated from a file fetched from the same unauthenticated source.
+
+### Local fail-closed check
+
+After both files and their separately approved hashes are available locally, run the following in Bash on macOS. Replace both checksum placeholders only with values from the approved review record. The block makes no network requests and does not execute, install, or apply either manifest. It rejects missing files, symlinks, missing or malformed checksum values, mismatches, and any extra directory entry (including hidden entries).
+
+```bash
+set -euo pipefail
+
+artifact_dir="./calico-v3.33.0-reviewed"
+crd_file="$artifact_dir/v3_projectcalico_org.yaml"
+operator_file="$artifact_dir/tigera-operator.yaml"
+expected_crd_sha256="REPLACE_WITH_SEPARATELY_APPROVED_SHA256"
+expected_operator_sha256="REPLACE_WITH_SEPARATELY_APPROVED_SHA256"
+
+[[ -d "$artifact_dir" && ! -L "$artifact_dir" ]] || {
+  printf '%s\n' "Missing or invalid artifact directory" >&2
+  exit 1
+}
+[[ -f "$crd_file" && ! -L "$crd_file" ]] || {
+  printf '%s\n' "Missing or invalid CRD manifest" >&2
+  exit 1
+}
+[[ -f "$operator_file" && ! -L "$operator_file" ]] || {
+  printf '%s\n' "Missing or invalid Operator manifest" >&2
+  exit 1
+}
+
+shopt -s dotglob nullglob
+inputs=("$artifact_dir"/*)
+[[ ${#inputs[@]} -eq 2 ]] || {
+  printf '%s\n' "Unexpected or missing manifest inputs" >&2
+  exit 1
+}
+for input in "${inputs[@]}"; do
+  case "$input" in
+    "$crd_file"|"$operator_file") ;;
+    *) printf '%s\n' "Unexpected manifest input: ${input##*/}" >&2; exit 1 ;;
+  esac
+done
+
+check_sha256() {
+  local file="$1" expected="$2" actual
+  [[ "$expected" =~ ^[[:xdigit:]]{64}$ ]] || {
+    printf '%s\n' "Missing or malformed approved SHA-256 for ${file##*/}" >&2
+    return 1
+  }
+  expected=$(printf '%s' "$expected" | tr '[:upper:]' '[:lower:]')
+  actual=$(shasum -a 256 "$file" | awk '{ print tolower($1) }')
+  [[ "$actual" == "$expected" ]] || {
+    printf '%s\n' "SHA-256 mismatch for ${file##*/}" >&2
+    return 1
+  }
+}
+
+check_sha256 "$crd_file" "$expected_crd_sha256"
+check_sha256 "$operator_file" "$expected_operator_sha256"
+printf '%s\n' "Both reviewed manifest hashes match"
+```
+
+The directory comparison requires exactly the two named inputs; it does not accept another manifest as an implicit substitute. A successful local comparison confirms that the files match the approved local values, not that the approval process or upstream signer was trustworthy. Keep installation blocked unless the source/signature review and both independent approvals are complete. The previously documented image digest, host prerequisite, CNI, and runtime-validation blockers remain unresolved, so this procedure does not change the overall **NO-GO** bootstrap recommendation. SEC-002 remains open.
