@@ -34,7 +34,29 @@ def test_ci_installs_the_combined_development_requirements():
         if step.get('name') == 'Install dependencies'
     )
 
-    assert install_step['run'] == 'python -m pip install -r requirements.txt'
+    assert install_step['run'] == (
+        'python -m pip install --require-hashes --only-binary=:all: '
+        '-r requirements-dev-ubuntu-py313.lock'
+    )
+
+
+def test_ci_locks_python_os_and_build_architecture_to_verified_targets():
+    workflow = _load_workflow()
+    test_job = workflow['jobs']['test']
+    image_job = workflow['jobs']['image']
+    setup_python = next(
+        step for step in _steps(test_job) if step.get('name') == 'Set up Python'
+    )
+    build_step = next(
+        step for step in _steps(image_job)
+        if step.get('name') == 'Build Docker image for scanning'
+    )
+
+    assert test_job['runs-on'] == 'ubuntu-24.04'
+    assert image_job['runs-on'] == 'ubuntu-24.04'
+    assert setup_python['with']['python-version'] == '3.13.16'
+    assert setup_python['with']['architecture'] == 'x64'
+    assert build_step['with']['platforms'] == 'linux/amd64'
 
 
 def test_ci_image_build_precedes_strict_high_critical_trivy_scan():

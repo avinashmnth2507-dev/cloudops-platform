@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -23,10 +23,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
-          python-version: '3.13'
+          python-version: '3.13.16'
+          architecture: x64
 
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt
+        run: "python -m pip install --require-hashes --only-binary=:all: -r requirements-dev-ubuntu-py313.lock"
 
       - name: Run Ruff
         run: python -m ruff check .
@@ -45,7 +46,7 @@ jobs:
   image:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     outputs:
@@ -62,6 +63,7 @@ jobs:
         with:
           context: .
           load: true
+          platforms: linux/amd64
           tags: cloudops-platform:${{ github.sha }}
 
       - name: Scan image for vulnerabilities
