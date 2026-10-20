@@ -26,6 +26,17 @@ def test_ci_workflow_runs_ruff_pytest_and_gitleaks():
     assert any(reference.startswith('gitleaks/gitleaks-action@') for reference in actions)
 
 
+def test_ci_installs_the_combined_development_requirements():
+    workflow = _load_workflow()
+    install_step = next(
+        step
+        for step in _steps(workflow['jobs']['test'])
+        if step.get('name') == 'Install dependencies'
+    )
+
+    assert install_step['run'] == 'python -m pip install -r requirements.txt'
+
+
 def test_ci_image_build_precedes_strict_high_critical_trivy_scan():
     workflow = _load_workflow()
     image_job = workflow['jobs']['image']

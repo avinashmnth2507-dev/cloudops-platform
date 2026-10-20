@@ -6,6 +6,34 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DOCKERFILE = REPOSITORY_ROOT / 'Dockerfile'
 DOCKERIGNORE = REPOSITORY_ROOT / '.dockerignore'
+REQUIREMENTS = REPOSITORY_ROOT / 'requirements.txt'
+RUNTIME_REQUIREMENTS = REPOSITORY_ROOT / 'requirements-runtime.txt'
+
+DIRECT_PIN = re.compile(
+    r'(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)'
+    r'(?:\[[A-Za-z0-9][A-Za-z0-9._,-]*\])?'
+    r'==(?P<version>[A-Za-z0-9][A-Za-z0-9.!+_-]*)'
+)
+
+
+def _requirement_lines(path: Path) -> list[str]:
+    return [
+        content
+        for line in path.read_text(encoding='utf-8').splitlines()
+        if (content := line.partition('#')[0].strip())
+    ]
+
+
+def _pinned_dependencies(path: Path) -> dict[str, str]:
+    lines = _requirement_lines(path)
+    dependencies = {}
+    for line in lines:
+        match = DIRECT_PIN.fullmatch(line)
+        assert match, f'{path.name} contains a non-exact direct package pin: {line}'
+        name = re.sub(r'[-_.]+', '-', match.group('name')).lower()
+        assert name not in dependencies, f'{path.name} repeats package {name}'
+        dependencies[name] = line
+    return dependencies
 
 
 def _instructions(text: str) -> list[tuple[str, str]]:
@@ -69,6 +97,68 @@ def test_production_image_copy_and_runtime_contract_are_constrained():
     ]
     assert len(health_checks) == 1
     assert 'http://127.0.0.1:8000/health' in health_checks[0]
+
+
+def test_runtime_dependencies_use_exact_version_pins():
+    dependencies = _pinned_dependencies(RUNTIME_REQUIREMENTS)
+
+    assert dependencies
+
+
+def test_runtime_dependencies_match_the_combined_ci_requirements():
+    runtime = _pinned_dependencies(RUNTIME_REQUIREMENTS)
+    combined = _pinned_dependencies(REQUIREMENTS)
+
+    assert {name: combined.get(name) for name in runtime} == runtime
+
+
+def test_development_dependencies_are_not_in_the_runtime_requirements():
+    runtime = _pinned_dependencies(RUNTIME_REQUIREMENTS)
+    combined = _pinned_dependencies(REQUIREMENTS)
+    development_only = set(combined) - set(runtime)
+
+    assert {'httpx', 'pytest', 'ruff'} <= development_only
+    assert {'httpx', 'pytest', 'ruff'}.isdisjoint(runtime)
+
+
+def test_dependency_inputs_contain_only_direct_pins_and_no_unapproved_sources():
+    forbidden_prefixes = (
+        '-',
+        'git+',
+        'hg+',
+        'svn+',
+        'bzr+',
+        'file:',
+        'http:',
+        'https:',
+        './',
+        '../',
+        '/',
+    )
+    for path in (REQUIREMENTS, RUNTIME_REQUIREMENTS):
+        lines = _requirement_lines(path)
+        assert lines
+        for line in lines:
+            assert not line.startswith(forbidden_prefixes), (
+                f'{path.name} contains an editable, source, path, or index directive: {line}'
+            )
+            assert ' @ ' not in line, f'{path.name} contains a direct URL requirement: {line}'
+            assert DIRECT_PIN.fullmatch(line), (
+                f'{path.name} contains an unreviewed requirement form: {line}'
+            )
+
+
+def test_production_image_installs_runtime_requirements_binary_only():
+    instructions = _instructions(DOCKERFILE.read_text(encoding='utf-8'))
+    install_commands = [
+        body for name, body in instructions if name == 'RUN' and 'pip install' in body
+    ]
+
+    assert len(install_commands) == 1
+    install = install_commands[0]
+    assert 'pip install' in install
+    assert '--only-binary=:all:' in install
+    assert re.search(r'(?:^|\s)-r\s+requirements-runtime\.txt(?:\s|$)', install)
 
 
 def test_dockerignore_excludes_local_environment_and_credential_material():
