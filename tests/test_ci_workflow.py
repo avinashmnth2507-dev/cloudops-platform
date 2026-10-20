@@ -58,6 +58,7 @@ def test_ghcr_publishing_and_image_handoff_remain_disabled():
     image_steps = _steps(workflow['jobs']['image'])
     publish_job = workflow['jobs']['publish']
 
+    assert set(workflow['on']) == {'push', 'pull_request'}
     assert publish_job['if'].rstrip().endswith('false }}')
     assert publish_job['permissions']['packages'] == 'write'
     assert workflow['permissions']['contents'] == 'read'

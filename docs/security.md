@@ -8,6 +8,7 @@ CloudOps Platform is a portfolio project, not a production deployment. The repos
 - On a `main` push, the `image` job builds the production image in the CI runner and runs Trivy with HIGH and CRITICAL findings configured to fail the job.
 - GitHub Actions run [39019245360](https://github.com/avinashmnth2507-dev/cloudops-platform/actions/runs/39019245360) passed for commit `068f3c8c67e754a19a092c79764a7b24fa40c0c1`. The test and image jobs succeeded; the image export and `publish` job were skipped.
 - GHCR publishing is intentionally disabled. A successful image job does not mean an image was published.
+- The [manual GHCR publication design](ghcr-publication-design.md) is a proposal only; the active workflow has no `workflow_dispatch` trigger and still cannot publish.
 - The repository includes configuration templates, not credentials. Keep real tokens, passwords, private keys, kubeconfig files, and Terraform state out of source control.
 
 ## Container configuration
