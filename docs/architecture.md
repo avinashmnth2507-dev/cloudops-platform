@@ -1,76 +1,74 @@
 # Architecture and Implementation Status
 
-CloudOps Platform is a portfolio project centered on a small FastAPI service. This page separates components implemented locally from configuration prepared for a future deployment. **No AWS infrastructure or Kubernetes cluster has been deployed from this repository.**
+CloudOps Platform is a portfolio project built around a small FastAPI service and its local delivery and operations path. It demonstrates application behavior and engineering controls without representing prepared cloud or cluster configuration as a deployed system. **No AWS infrastructure, Kubernetes cluster, or monitoring stack has been deployed. GHCR publishing is disabled.**
 
-## Implemented locally
+## Implemented application and delivery path
 
-- FastAPI endpoints for application metadata, health, readiness, status, runtime information, and Prometheus metrics; structured JSON request events are written to stdout.
-- The local pytest suite covers all six application endpoints, metrics, request logging, instrumentation-failure handling, and offline configuration checks.
-- Dockerfile and Docker Compose configuration.
-- GitHub Actions run [39019245360](https://github.com/avinashmnth2507-dev/cloudops-platform/actions/runs/39019245360) passed on commit `068f3c8c67e754a19a092c79764a7b24fa40c0c1`: test and image jobs succeeded, while publishing was skipped. The image was built and scanned in the runner; it was not published.
+- FastAPI exposes `/`, `/health`, `/ready`, `/api/v1/status`, `/api/v1/info`, and `/metrics`. Readiness currently reports application/process readiness; it does not probe external dependencies.
+- Middleware emits structured JSON request events and records Prometheus counters and latency histograms. Route and method labels are bounded, and instrumentation failures do not replace application responses.
+- The Dockerfile uses a digest-pinned Python 3.13.16 Alpine 3.24 base and a platform-specific runtime lock installed with `--require-hashes` and `--only-binary=:all:`. The image runs as UID/GID `10001:10001` and defines an HTTP healthcheck.
+- Docker Compose publishes `127.0.0.1:8000`, drops all Linux capabilities, uses a read-only root filesystem and `/tmp` tmpfs, and enables `no-new-privileges`.
+- GitHub Actions uses the hash-verified Ubuntu/Python 3.13.16 development lock, Ruff, pytest, and Gitleaks. Main pushes build a Linux amd64 image and run a Trivy HIGH/CRITICAL gate.
 
-The local verification report records the stopped Compose container and the reason it was not started for a live demo. Run #5 remains historical evidence for an older commit. Local tests and static checks do not deploy cloud or cluster infrastructure. The local Python environment is 3.14; the workflow uses Python 3.13.
+The local pytest suite covers the API and offline configuration checks. A prior [DEV-015 local demonstration](local-verification-report.md) built and started the secured local application, checked all six endpoints, and parsed request counters from `/metrics`. This demonstrates one local run only; it does not establish a current running container or monitoring service.
 
-## Prepared configuration — not deployed
+## Current CI evidence
 
-- Terraform describes a VPC, public subnet, security group, IAM role, and EC2 instance.
-- k3s bootstrap settings and a Calico `Installation` custom resource are present.
-- Kubernetes manifests and the CloudOps Helm chart describe the application, service, ingress, autoscaling, monitoring, and policy settings.
-- Prometheus/Grafana values and a dashboard JSON are present. They do not establish an installed monitoring stack or automatic dashboard provisioning.
-- Loki values and documentation are present; a complete log collection pipeline is not demonstrated.
+GitHub Actions [run 39468033513](https://github.com/avinashmnth2507-dev/cloudops-platform/actions/runs/39468033513) passed for commit `8e711c8a5338b68fde1bff1ba928088d424c41e9`. The test job passed dependency installation, Ruff, 178 pytest tests, and Gitleaks. The image job passed the image build and configured Trivy gate. Image export, checksum, artifact upload, and the GHCR publish job were skipped. The image was not published. The run predates the current portfolio documentation edits, so it is evidence for that commit, not these uncommitted docs.
 
-## Planned deployment architecture
+## Architecture map
 
-The diagram shows the intended flow, not a deployed system. Dashed edges indicate proposed or disabled steps.
+The diagram distinguishes the existing local/CI path from prepared and future runtime configuration.
 
 ```mermaid
 flowchart TB
-  subgraph local["Implemented locally"]
-    app["FastAPI application and JSON request events"] --> tests["Local pytest regression suite"]
-    repo["Git repository"] --> workflow["GitHub Actions<br/>run 39019245360 passed for 068f3c8"]
-    workflow --> validation["Pull request: Ruff, tests, Gitleaks"]
-    workflow --> scan["Main push: build image and scan with Trivy"]
-    scan --> localimage["Image in CI runner only"]
+  subgraph implemented[Implemented and validated locally or in CI]
+    source[FastAPI source] --> api[Six HTTP endpoints]
+    api --> logs[Structured JSON request events]
+    api --> metrics[Prometheus text exposition]
+    source --> localtests[Local pytest suite]
+    git[Repository push or pull request] --> ci[GitHub Actions test job]
+    ci -->|main push after success| image[linux/amd64 build and Trivy gate]
+    image -. handoff disabled .-> artifact[CI artifact]
+    artifact -. publication disabled .-> ghcr[GHCR]
   end
 
-  ghcr["GHCR image<br/>publishing disabled; no image published"]
-  localimage -. "planned; disabled" .-> ghcr
-
-  subgraph prepared["Prepared configuration — not applied"]
-    terraform["Terraform configuration"]
-    calico["Calico Installation configuration"]
-    manifests["Kubernetes manifests and Helm chart"]
-    monitoring["Prometheus and Grafana values"]
-    loki["Loki values and documentation"]
+  subgraph prepared[Prepared configuration — not deployed]
+    compose[Hardened local Compose service]
+    terraform[Terraform AWS examples]
+    k8s[Kubernetes manifests and Helm chart]
+    monitoring[Prometheus, Grafana, and Loki values]
+    bootstrap[K3s and Calico preparation]
   end
 
-  subgraph future["Planned runtime — not verified"]
-    aws["AWS VPC, subnet, and EC2"] --> k3s["k3s"]
-    k3s --> cloudops["CloudOps application"]
-    k3s --> prom["Prometheus and Grafana"]
-    k3s --> lokiworkload["Loki and log collection"]
+  subgraph future[Future runtime — unverified]
+    aws[AWS host and network] --> k3s[K3s with verified CNI]
+    k3s --> app[CloudOps deployment]
+    k3s --> stack[Monitoring and logging services]
   end
 
-  terraform -. "future deployment" .-> aws
-  calico -. "separate install and readiness required" .-> k3s
-  manifests -. "future deployment" .-> cloudops
-  monitoring -. "future install" .-> prom
-  loki -. "future integration" .-> lokiworkload
+  compose -. local execution .-> api
+  terraform -. separate approval .-> aws
+  k8s -. image digest and cluster required .-> app
+  monitoring -. installation required .-> stack
+  bootstrap -. provenance and readiness required .-> k3s
 ```
 
-On main pushes, the workflow builds and scans an image after tests succeed. In run `39019245360`, the build and Trivy scan passed, while image export and the `publish` job were skipped by the disabled gate. The older Run #5 passed for commit `f6ba78bcdda1a843e9cb33742826b46e98976f00`. Kubernetes and Helm image references still contain placeholders and are not deployable as written. See the [local verification report](local-verification-report.md) for the separately checked app/container state.
+## Prepared configuration and blockers
 
-## Deployment prerequisites and limits
-
-- **AWS:** No infrastructure has been deployed. The Terraform configuration includes public HTTP ingress and may incur EC2, EBS, public IPv4, data-transfer, and CPU-credit charges.
-- **k3s and Calico:** The bootstrap disables Flannel and k3s's embedded NetworkPolicy controller. A separately installed and healthy Calico CNI is required before relying on pod networking. Runtime compatibility and enforcement are unverified. See [Calico preparation](calico-installation.md) and [deployment prerequisites](deployment.md).
-- **NetworkPolicy:** SEC-002 remains open. The standalone policy denies application ingress, while Helm NetworkPolicy is disabled by default. Do not enable or apply a policy until source workload identities and CNI enforcement have been verified. See [Kubernetes security notes](kubernetes.md).
-- **Ingress:** The configured application Ingress is HTTP-only; TLS is deferred. Terraform permits public TCP 80. Review exposure before any future deployment.
-- **Autoscaling:** HPA configuration exists, but a working Metrics API and runtime scaling have not been verified.
-- **Monitoring:** Prometheus/Grafana are configured but not installed. Scraping, persistent storage, dashboard provisioning, and node capacity remain unverified. See [monitoring status](monitoring.md) and the [resource budget](monitoring-resource-budget.md).
+- **Kubernetes and Helm:** Deployment, Service, probes, resources, security contexts, HPA, Ingress, ServiceMonitor, and NetworkPolicy templates have offline validation. The standalone Deployment image is empty by design; Helm requires an explicit digest-pinned image. No API-server acceptance, scheduling, or release has been tested.
+- **NetworkPolicy:** The standalone policy denies ingress to CloudOps pods. Helm NetworkPolicy defaults to disabled and requires explicit selectors. Ingress-controller and metrics identities and CNI enforcement remain unverified; keep **SEC-002 OPEN**.
+- **K3s and Calico:** Bootstrap/configuration work is offline only. K3s refuses installation and Calico installation remains **NO-GO** until provenance, separately approved artifacts, host prerequisites, CNI readiness, and recovery are established.
+- **Autoscaling and resources:** CPU/memory requests and limits are declared and statically checked. HPA is configured but depends on a working Metrics API; scheduling and scaling have not been tested.
+- **Observability:** Application metrics and request events are implemented. Prometheus/Grafana/Loki configuration is present, but no scrape, dashboard, persistence, or log-collection pipeline is running.
+- **Terraform:** VPC, subnet, IAM, security group, and EC2 examples are present. They have not been initialized or applied and may create billable resources.
+- **Publication:** GHCR handoff and publication are disabled. No image has been published. A future deployment requires an independently reviewed, available immutable digest.
 
 ## Related documentation
 
 - [Project overview and local development](../README.md)
-- [Security controls](security.md)
-- [Development capacity profiles](development-profiles.md)
+- [Security controls and limits](security.md)
+- [Deployment prerequisites](deployment.md)
+- [Kubernetes configuration](kubernetes.md)
+- [Helm offline validation](helm.md)
+- [Portfolio evidence index](portfolio-evidence.md)

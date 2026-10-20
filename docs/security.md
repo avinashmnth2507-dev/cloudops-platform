@@ -4,23 +4,20 @@ CloudOps Platform is a portfolio project, not a production deployment. The repos
 
 ## Source and CI
 
-- The `test` job runs Ruff, pytest, and Gitleaks. The workflow uses pinned action commit references and grants read-only repository permissions to the test and image jobs.
-- On a `main` push, the `image` job builds the production image in the CI runner and runs Trivy with HIGH and CRITICAL findings configured to fail the job.
-- GitHub Actions run [39019245360](https://github.com/avinashmnth2507-dev/cloudops-platform/actions/runs/39019245360) passed for commit `068f3c8c67e754a19a092c79764a7b24fa40c0c1`. The test and image jobs succeeded; the image export and `publish` job were skipped.
+- The `test` job installs the platform-specific development lock with `pip --require-hashes`, then runs Ruff, pytest, and Gitleaks. The workflow actions are pinned to commit SHAs; the test and image jobs have `contents: read` permissions.
+- On a push to `main`, the dependent `image` job builds the production image for Linux amd64 and runs Trivy with HIGH and CRITICAL findings configured to fail the job.
+- GitHub Actions [run 39468033513](https://github.com/avinashmnth2507-dev/cloudops-platform/actions/runs/39468033513) passed for commit `8e711c8a5338b68fde1bff1ba928088d424c41e9`: dependency install, Ruff, 178 pytest tests, Gitleaks, image build, and Trivy gate succeeded. The image handoff steps and `publish` job were skipped. The image was not published. This run predates the current documentation edits.
 - GHCR publishing is intentionally disabled. A successful image job does not mean an image was published.
 - The [manual GHCR publication design](ghcr-publication-design.md) is a proposal only; the active workflow has no `workflow_dispatch` trigger and still cannot publish.
 - The repository includes configuration templates, not credentials. Keep real tokens, passwords, private keys, kubeconfig files, and Terraform state out of source control.
 
+The runtime and development locks include exact versions and approved SHA-256 artifact hashes. Hash verification protects downloaded artifact contents against those values; it does not establish publisher identity or package trustworthiness.
+
 ## Container configuration
 
-The production `Dockerfile` uses a digest-pinned Alpine Python base and runs as UID/GID `10001:10001`. `docker-compose.yml` configures a read-only root filesystem, a `/tmp` tmpfs, and `no-new-privileges:true`. The image defines an HTTP healthcheck.
+The production `Dockerfile` uses a digest-pinned Alpine Python base, hash-verified binary-only runtime dependencies, and UID/GID `10001:10001`. It defines an HTTP healthcheck. `docker-compose.yml` publishes only on `127.0.0.1:8000`, drops all Linux capabilities, uses a read-only root filesystem and `/tmp` tmpfs, and enables `no-new-privileges:true`.
 
-There are two material limits in the current Compose setup:
-
-- It does not set `cap_drop`, so Docker reports no capabilities as dropped.
-- The `8000:8000` port mapping has no host-IP restriction and binds the published port on all host interfaces.
-
-The read-only inspection recorded in the [local verification report](local-verification-report.md) found the existing app container stopped. Its stored configuration had a non-root user, read-only root, and no-new-privileges, but no dropped capabilities. Its previous `healthy` health value is stale because the container is exited. The report explains why the container was not started. These observations do not establish a running or current application image.
+The [DEV-015 local verification report](local-verification-report.md) records a local build and running healthy app with these Compose controls, no unexpected mounts, and six successful endpoint checks. That evidence applies to a disclosed dirty local worktree at the time of the run; it does not establish a currently running container or a cloud/cluster deployment. Earlier stopped-container observations in this report are historical and predate the DEV-011 hardening changes.
 
 ## Kubernetes and NetworkPolicy
 
