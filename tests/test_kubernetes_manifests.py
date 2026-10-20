@@ -126,6 +126,26 @@ def test_resource_requests_are_positive_and_do_not_exceed_limits():
         assert _quantity(request, resource) <= _quantity(resources['limits'][resource], resource)
 
 
+def test_hpa_targets_deployment_with_declared_cpu_request():
+    deployment = _load_yaml(K8S / 'deployment.yaml')
+    hpa = _load_yaml(K8S / 'hpa.yaml')
+    hpa_spec = hpa['spec']
+    container = deployment['spec']['template']['spec']['containers'][0]
+    metric = hpa_spec['metrics'][0]
+
+    assert hpa_spec['scaleTargetRef'] == {
+        'apiVersion': deployment['apiVersion'],
+        'kind': deployment['kind'],
+        'name': deployment['metadata']['name'],
+    }
+    assert 1 <= hpa_spec['minReplicas'] <= hpa_spec['maxReplicas']
+    assert _quantity(container['resources']['requests']['cpu'], 'cpu') > 0
+    assert metric['type'] == 'Resource'
+    assert metric['resource']['name'] == 'cpu'
+    assert metric['resource']['target']['type'] == 'Utilization'
+    assert 1 <= metric['resource']['target']['averageUtilization'] <= 100
+
+
 def test_kubernetes_security_contexts_keep_restricted_runtime_settings():
     deployment = _load_yaml(K8S / 'deployment.yaml')
     pod_spec = deployment['spec']['template']['spec']
@@ -189,12 +209,15 @@ def test_dashboard_json_queries_reference_defined_application_metrics():
         for expression in expressions
         for metric in re.findall(r'\bcloudops_[a-zA-Z0-9_:]+', expression)
     }
-    defined_samples = {
-        sample.name
-        for collector in (REQUEST_COUNT, REQUEST_LATENCY)
-        for metric_family in collector.collect()
-        for sample in metric_family.samples
-    }
+    defined_samples = set()
+    for collector in (REQUEST_COUNT, REQUEST_LATENCY):
+        for metric_family in collector.describe():
+            if metric_family.type == 'counter':
+                defined_samples.add(f'{metric_family.name}_total')
+            elif metric_family.type == 'histogram':
+                defined_samples.update(
+                    f'{metric_family.name}_{suffix}' for suffix in ('bucket', 'sum', 'count')
+                )
 
     assert dashboard_metrics
     assert dashboard_metrics <= defined_samples

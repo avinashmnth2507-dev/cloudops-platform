@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -35,6 +36,20 @@ def _resources(rendered: str) -> list[dict]:
     return [document for document in yaml.safe_load_all(rendered) if document]
 
 
+def _resource_quantity(value: str, resource: str) -> float:
+    units = {'': 1, 'm': 0.001} if resource == 'cpu' else {
+        '': 1,
+        'Ki': 1024,
+        'Mi': 1024**2,
+        'Gi': 1024**3,
+    }
+    match = re.fullmatch(r'([0-9]+(?:\.[0-9]+)?)(m|Ki|Mi|Gi)?', str(value))
+    assert match, f'unsupported resource quantity: {value}'
+    amount, suffix = match.groups()
+    assert suffix in units
+    return float(amount) * units[suffix]
+
+
 def test_helm_lint_passes_with_test_only_digest_fixture():
     result = subprocess.run(
         [
@@ -69,8 +84,11 @@ def test_helm_render_with_test_fixture_preserves_service_and_security():
     assert service['spec']['selector'] == deployment['spec']['selector']['matchLabels']
     assert service['spec']['ports'][0]['targetPort'] == container['ports'][0]['containerPort']
     assert container['ports'][0]['name'] == service['spec']['ports'][0]['name'] == 'http'
-    assert container['livenessProbe']['httpGet']['path'] == '/health'
-    assert container['readinessProbe']['httpGet']['path'] == '/ready'
+    assert container['livenessProbe']['httpGet'] == {'path': '/health', 'port': 'http'}
+    assert container['readinessProbe']['httpGet'] == {'path': '/ready', 'port': 'http'}
+    assert pod['spec']['automountServiceAccountToken'] is False
+    assert pod['spec']['serviceAccountName'] == by_kind['ServiceAccount']['metadata']['name']
+    assert by_kind['ServiceAccount']['automountServiceAccountToken'] is False
     assert pod['spec']['securityContext']['seccompProfile']['type'] == 'RuntimeDefault'
     security = container['securityContext']
     assert security['runAsNonRoot'] is True
@@ -81,6 +99,51 @@ def test_helm_render_with_test_fixture_preserves_service_and_security():
     assert 'NetworkPolicy' not in {resource['kind'] for resource in resources}
     assert 'ServiceMonitor' not in {resource['kind'] for resource in resources}
     assert 'Ingress' not in {resource['kind'] for resource in resources}
+
+
+def test_helm_rendered_resources_are_positive_and_requests_do_not_exceed_limits():
+    result = _helm_template()
+
+    assert result.returncode == 0, result.stderr
+    deployment = next(
+        resource for resource in _resources(result.stdout) if resource['kind'] == 'Deployment'
+    )
+    resources = deployment['spec']['template']['spec']['containers'][0]['resources']
+
+    assert resources['requests'].keys() == resources['limits'].keys()
+    for resource, request in resources['requests'].items():
+        assert _resource_quantity(request, resource) > 0
+        assert _resource_quantity(request, resource) <= _resource_quantity(
+            resources['limits'][resource], resource
+        )
+
+
+def test_helm_hpa_targets_deployment_with_declared_cpu_request():
+    result = _helm_template()
+
+    assert result.returncode == 0, result.stderr
+    resources = _resources(result.stdout)
+    deployment = next(
+        resource for resource in resources if resource['kind'] == 'Deployment'
+    )
+    hpa = next(
+        resource for resource in resources if resource['kind'] == 'HorizontalPodAutoscaler'
+    )
+    hpa_spec = hpa['spec']
+    container = deployment['spec']['template']['spec']['containers'][0]
+    metric = hpa_spec['metrics'][0]
+
+    assert hpa_spec['scaleTargetRef'] == {
+        'apiVersion': deployment['apiVersion'],
+        'kind': deployment['kind'],
+        'name': deployment['metadata']['name'],
+    }
+    assert 1 <= hpa_spec['minReplicas'] <= hpa_spec['maxReplicas']
+    assert _resource_quantity(container['resources']['requests']['cpu'], 'cpu') > 0
+    assert metric['type'] == 'Resource'
+    assert metric['resource']['name'] == 'cpu'
+    assert metric['resource']['target']['type'] == 'Utilization'
+    assert 1 <= metric['resource']['target']['averageUtilization'] <= 100
 
 
 def test_default_helm_render_fails_without_an_explicit_image_reference():
