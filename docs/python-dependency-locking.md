@@ -1,62 +1,89 @@
 # Python Dependency Locking Plan — Not Implemented
 
-This document plans a future dependency-locking change. DEV-030 adds offline checks and documentation only: it does not generate lockfiles, hashes, or change dependency versions. The current Docker build and CI commands remain unchanged. **SEC-002 remains OPEN; K3s/Calico remains NO-GO.**
+Dependency locking is not yet implemented. Production and CI continue using their existing requirements files.
+
+The canonical `.in` inputs added for future lock generation do not change installation behavior. No dependency lockfiles, resolved transitive versions, or package hashes have been generated. **SEC-002 remains OPEN; K3s/Calico remains NO-GO.**
 
 ## Current dependency files
 
-- `requirements-runtime.txt` contains the five direct application requirements: FastAPI, Starlette, Uvicorn with its `standard` extra, `prometheus-client`, and `pydantic-settings`. Each currently uses `==` with an exact version.
-- `requirements.txt` repeats those five runtime requirements and adds `httpx`, `pytest`, and `ruff` for tests and CI. Its runtime declarations currently match `requirements-runtime.txt`.
-- `pyproject.toml` configures pytest and Ruff; it does not declare project dependencies or a Python requirement.
-- The production `Dockerfile` uses the digest-pinned `python:3.13.16-alpine3.24` image and installs `requirements-runtime.txt` with `--only-binary=:all:`.
-- `.github/workflows/ci.yml` selects Python `3.13` and installs `requirements.txt` before Ruff and pytest.
-
-These are direct-dependency lists, not complete locks. They do not pin transitive package versions or list expected package hashes. Neither installer enables `pip --require-hashes`. A later resolution can therefore choose different transitive versions or package artifacts while the direct pins remain unchanged. The current offline tests check declaration structure and file wiring; they do not claim that hash verification is enabled.
-
-## Proposed pip-based layout
-
-For a separately reviewed implementation, use direct-input files and ordinary pip-compatible generated lock files:
-
-| File | Purpose |
+| File | Current or planned purpose |
 |---|---|
-| `requirements-runtime.in` | Canonical direct runtime requirements, moved from the current runtime list. |
-| `requirements-dev.in` | Test and lint requirements plus the runtime input. |
-| `requirements-runtime.lock` | Generated full runtime dependency graph with exact versions and SHA-256 hashes. |
-| `requirements-dev.lock` | Generated CI/test graph with exact versions and hashes; constrain shared runtime packages to the runtime lock. |
+| `requirements-runtime.in` | Canonical direct runtime declarations for a future runtime lock. |
+| `requirements-dev.in` | Canonical development declarations; includes `requirements-runtime.in` plus the existing test and lint dependencies. |
+| `requirements-runtime.txt` | Active production dependency input used by the Dockerfile. |
+| `requirements.txt` | Active combined development/CI dependency input used by GitHub Actions. |
+| `requirements-runtime-alpine-py313-amd64.lock` | Proposed full runtime lock for the production platform; not created. |
+| `requirements-dev-ubuntu-py313.lock` | Proposed full development lock for CI; not created. |
 
-Use a pinned `pip-tools` version only as a lock generator, for example `pip-compile --generate-hashes`. It emits standard requirements syntax; installation remains ordinary pip. Generate and commit the lock outputs from reviewed inputs, not by hand. The runtime and development locks must agree on every shared runtime package version. The CI and Dockerfile path changes belong to DEV-031, not this task.
+The canonical runtime input currently contains:
 
-Install with hash checking enabled:
+```text
+fastapi==0.133.0
+starlette==1.3.1
+uvicorn[standard]==0.36.0
+prometheus-client==0.23.1
+pydantic-settings==2.11.0
+```
+
+The canonical development input contains:
+
+```text
+-r requirements-runtime.in
+httpx==0.28.1
+pytest==8.4.2
+ruff==0.13.2
+```
+
+The two active `.txt` files remain unchanged. The production Dockerfile installs `requirements-runtime.txt` with `--only-binary=:all:`. CI selects Python `3.13` on `ubuntu-latest` and installs `requirements.txt`. The runtime declarations in the current active files match. These active inputs pin direct dependencies only; they do not lock transitive versions or require package hashes.
+
+## Proposed platform-specific locks
+
+Use separate pip requirements-format lockfiles:
+
+- `requirements-runtime-alpine-py313-amd64.lock` for Python `3.13.16`, Linux amd64, Alpine `3.24`, and musl, matching the production Docker base image.
+- `requirements-dev-ubuntu-py313.lock` for the Ubuntu CI environment and Python `3.13`. Before implementation, pin CI to a reviewed Python patch version compatible with production and a stable Ubuntu runner release, or explicitly validate the chosen versions.
+
+Do not assume one lock can safely cover Alpine and Ubuntu. A shared file can theoretically carry hashes for artifacts from multiple platforms, but marker-dependent dependency graphs and distinct musl/glibc wheels must be accounted for. Generate and validate each lock on its target platform, then compare the shared runtime package versions. If a package cannot use the same version on both targets, review and document that difference before adopting the locks.
+
+Use a reviewed, pinned `pip-tools` version only as the lock generator. Generate the complete graph and hashes in matching Linux environments, for example:
 
 ```sh
-python -m pip install --require-hashes -r requirements-dev.lock
+pip-compile --generate-hashes --output-file requirements-runtime-alpine-py313-amd64.lock requirements-runtime.in
+pip-compile --generate-hashes --output-file requirements-dev-ubuntu-py313.lock requirements-dev.in
 ```
+
+These commands are future instructions only; they were not run for this change. The generator version and exact Python/platform environment must be recorded when locks are created. Do not generate either lock from macOS and treat it as production evidence.
+
+Install a generated lock with hash enforcement:
+
+```sh
+python -m pip install --require-hashes -r requirements-dev-ubuntu-py313.lock
+```
+
+The future production install should retain the existing binary-only constraint and add hash checking:
 
 ```dockerfile
-RUN pip install --require-hashes --only-binary=:all: --no-cache-dir -r requirements-runtime.lock
+RUN pip install --require-hashes --only-binary=:all: --no-cache-dir -r requirements-runtime-alpine-py313-amd64.lock
 ```
 
-With `--require-hashes`, pip requires every dependency in the resolved graph to be exactly pinned and hashed; partial coverage is rejected. Include SHA-256 hashes for the package archives allowed on each supported target. A hash confirms that a downloaded artifact matches the approved value in the lock. It does not prove that the original publisher or source was trustworthy. Review the package identity, version, release source, and proposed hashes independently before approving a lock update. See [pip hash-checking guidance](https://pip.pypa.io/en/stable/topics/secure-installs/) and the [`pip-compile` hash-generation option](https://pip-tools.pypa.io/en/stable/reference/pip-compile/).
+`--require-hashes` requires exact pins and hashes throughout the dependency graph. Review that every transitive package is present, every allowed artifact has a genuine SHA-256 hash, and no unpinned dependency or extra index/source directive remains. Hashes show that an artifact matches its approved hash; they do not establish that the original package publisher is trustworthy. Review package identity, version, provenance, and artifact selection independently. See [pip hash-checking guidance](https://pip.pypa.io/en/stable/topics/secure-installs/) and the [`pip-compile` hash option](https://pip-tools.readthedocs.io/en/stable/).
 
-## Python and platform compatibility
+## Compatibility and verification
 
-Keep the supported interpreter explicit at Python 3.13. Generate and install locks using the Python minor version used by CI and the production image; record the exact patch version used to generate and validate each lock. CI currently requests Python `3.13`, while the production base pins Python 3.13.16. DEV-031 should confirm that the selected lock-generation and runtime packages support Python 3.13 and that CI and production resolve compatible shared versions.
+Production uses the digest-pinned Python `3.13.16` Alpine `3.24` base image for Linux amd64. Alpine uses musl; CI runs on Ubuntu, which uses glibc. Linux `manylinux` wheels target glibc, while Alpine requires compatible `musllinux` wheels or platform-independent wheels. Keep `--only-binary=:all:` in production so a missing compatible wheel fails the build instead of silently compiling a source distribution. See [PEP 656](https://peps.python.org/pep-0656/) for musllinux tags.
 
-The production target is Linux amd64 on Alpine, which uses musl rather than glibc. Linux wheels tagged `manylinux` target glibc; Alpine needs compatible `musllinux` wheels or platform-independent wheels. The `--only-binary=:all:` restriction must remain, and the production build must fail if any locked runtime dependency lacks an allowed wheel. See [PEP 656](https://peps.python.org/pep-0656/) for the musllinux platform tags.
+MacOS dependency resolution is insufficient for the production lock: macOS selects different wheel artifacts and can evaluate environment markers differently. Generate or verify the runtime lock using the exact production Python, Linux architecture, Alpine/musl base, and package installer behavior. Verify that every selected runtime artifact is a compatible wheel and that its SHA-256 is included. Verify the development lock separately on the pinned Ubuntu/Python target. Compare shared runtime versions across both outputs and retain the generator and platform details with the review evidence.
 
-A lock resolved only on macOS is insufficient evidence for the production image. macOS selects different wheels and can apply different environment markers than Linux amd64 on musl. Generate or validate runtime hashes in an environment that matches the pinned Python, Linux architecture, and Alpine/musl target. If CI also installs the development lock on Ubuntu, include and review hashes for the allowed Ubuntu artifacts too, or maintain appropriately scoped locks. Confirm shared package versions remain consistent across locks.
+The offline tests can verify direct input declarations, exact current versions, safe requirement syntax, and that Docker and CI still use their existing files. They cannot prove transitive resolution, wheel availability, artifact hashes, or installation success. Those require package metadata/artifact access and target-platform installation.
 
-## Controlled dependency updates
+## Controlled update and rollback
 
-1. Update only the intended direct requirement in the `.in` input and record why the version is changing.
-2. Use the pinned lock generator in a clean, documented Python 3.13 environment to resolve the complete dependency graph and regenerate the affected locks with SHA-256 hashes. Do not copy hashes from an unrelated platform or invent values.
-3. Review the direct and transitive package names, versions, source URLs, wheel tags, and hash changes. Confirm every runtime dependency has an approved hash for the production target and every requirement remains pinned.
-4. Run hash-required installation and the test suite for CI's platform. Build the production image using the Alpine/musllinux runtime lock and retain binary-only installation. Run the existing image vulnerability scan before treating the update as approved.
-5. Keep a focused lockfile diff and update dependency documentation when the supported Python or platform scope changes. Do not silently refresh all dependencies as part of an unrelated code change.
+1. Change only the intended direct dependency declaration and record the reason.
+2. In the matching target environments, run the reviewed and pinned lock generator to resolve all transitive dependencies and generate SHA-256 hashes. Do not handwrite or copy hashes from another platform.
+3. Review package names, direct and transitive versions, environment markers, wheel tags, artifact sources, and all hash additions/removals. Confirm the shared runtime versions agree where expected.
+4. Install the development lock with `--require-hashes` on CI’s Ubuntu/Python target. Build the production image using the Alpine runtime lock while retaining `--only-binary=:all:`. Run the existing tests and image vulnerability scan.
+5. Update Dockerfile and CI lock references only after the locks pass target-specific validation. Preserve the current `.txt` install path until that change is reviewed and validated.
 
-## DEV-031 boundary and rollback
+Package-index access and downloads are required to resolve dependencies and obtain package artifacts. Production compatibility validation requires a Docker build using the pinned Alpine base and downloaded wheels. These actions need separate authorization; they are not part of this documentation and input-preparation change.
 
-DEV-031 will need to resolve transitive dependencies, obtain genuine artifact hashes, and install those artifacts. These actions require package-index/network access and package downloads. Confirming Alpine compatibility requires a production-platform dependency installation, which requires an image build and its package downloads. Updating the Dockerfile, CI references, tests, and documentation is source work, but offline checks alone cannot prove that the selected wheels install or that the built image passes Trivy.
-
-DEV-030 can complete static requirement parsing, assertions about file wiring, documentation, Ruff, and pytest without package downloads, Docker builds, or cluster access. No resolver, lock, artifact, or image validation is run here.
-
-If a future locked build or security check fails, do not disable `--require-hashes`, remove `--only-binary=:all:`, or publish the image. Keep publication disabled, preserve the failing lock diff and logs, then revert the lock inputs, outputs, Dockerfile, and CI references together to the last reviewed commit. The rollback restores the current unlocked behavior and must not be represented as reproducible; correct the lock in a new reviewed change before retrying.
+If a future locked installation or image build fails, keep the failure logs and lock diff, do not disable `--require-hashes` or `--only-binary=:all:`, and do not publish an image. Revert the lock inputs, generated locks, Dockerfile, CI references, and related tests together to the last reviewed state. The rollback restores the existing unlocked behavior and must not be described as reproducible; correct and revalidate the locks in a new reviewed change.

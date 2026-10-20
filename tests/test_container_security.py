@@ -8,6 +8,9 @@ DOCKERFILE = REPOSITORY_ROOT / 'Dockerfile'
 DOCKERIGNORE = REPOSITORY_ROOT / '.dockerignore'
 REQUIREMENTS = REPOSITORY_ROOT / 'requirements.txt'
 RUNTIME_REQUIREMENTS = REPOSITORY_ROOT / 'requirements-runtime.txt'
+RUNTIME_INPUT = REPOSITORY_ROOT / 'requirements-runtime.in'
+DEVELOPMENT_INPUT = REPOSITORY_ROOT / 'requirements-dev.in'
+LOCKING_DOCUMENT = REPOSITORY_ROOT / 'docs' / 'python-dependency-locking.md'
 
 DIRECT_PIN = re.compile(
     r'(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)'
@@ -119,6 +122,84 @@ def test_development_dependencies_are_not_in_the_runtime_requirements():
 
     assert {'httpx', 'pytest', 'ruff'} <= development_only
     assert {'httpx', 'pytest', 'ruff'}.isdisjoint(runtime)
+
+
+def test_canonical_dependency_inputs_exist_and_runtime_matches_active_requirements():
+    assert RUNTIME_INPUT.is_file()
+    assert DEVELOPMENT_INPUT.is_file()
+    assert _pinned_dependencies(RUNTIME_INPUT) == _pinned_dependencies(
+        RUNTIME_REQUIREMENTS
+    )
+
+
+def test_development_input_includes_runtime_and_only_existing_development_dependencies():
+    lines = _requirement_lines(DEVELOPMENT_INPUT)
+
+    assert lines[0] == '-r requirements-runtime.in'
+    assert lines[1:] == [
+        'httpx==0.28.1',
+        'pytest==8.4.2',
+        'ruff==0.13.2',
+    ]
+
+
+def test_canonical_inputs_preserve_all_existing_direct_dependency_versions():
+    expected_runtime = {
+        'fastapi': 'fastapi==0.133.0',
+        'starlette': 'starlette==1.3.1',
+        'uvicorn': 'uvicorn[standard]==0.36.0',
+        'prometheus-client': 'prometheus-client==0.23.1',
+        'pydantic-settings': 'pydantic-settings==2.11.0',
+    }
+    expected_development = {
+        **expected_runtime,
+        'httpx': 'httpx==0.28.1',
+        'pytest': 'pytest==8.4.2',
+        'ruff': 'ruff==0.13.2',
+    }
+
+    assert _pinned_dependencies(RUNTIME_INPUT) == expected_runtime
+    assert _pinned_dependencies(REQUIREMENTS) == expected_development
+
+
+def test_canonical_inputs_reject_unapproved_requirement_sources():
+    forbidden_prefixes = (
+        '-',
+        'git+',
+        'hg+',
+        'svn+',
+        'bzr+',
+        'file:',
+        'http:',
+        'https:',
+        './',
+        '../',
+        '/',
+    )
+    for path in (RUNTIME_INPUT, DEVELOPMENT_INPUT):
+        lines = _requirement_lines(path)
+        if path == DEVELOPMENT_INPUT:
+            assert lines[0] == '-r requirements-runtime.in'
+            lines = lines[1:]
+        assert lines
+        for line in lines:
+            assert not line.startswith(forbidden_prefixes), (
+                f'{path.name} contains an editable, source, path, or index directive: {line}'
+            )
+            assert ' @ ' not in line, f'{path.name} contains a direct URL requirement: {line}'
+            assert DIRECT_PIN.fullmatch(line), (
+                f'{path.name} contains an unreviewed requirement form: {line}'
+            )
+
+
+def test_dependency_locking_is_documented_as_inactive_until_verified():
+    documentation = LOCKING_DOCUMENT.read_text(encoding='utf-8')
+    assert (
+        'Dependency locking is not yet implemented. Production and CI continue using '
+        'their existing requirements files.'
+    ) in documentation
+    assert not (REPOSITORY_ROOT / 'requirements-runtime-alpine-py313-amd64.lock').exists()
+    assert not (REPOSITORY_ROOT / 'requirements-dev-ubuntu-py313.lock').exists()
 
 
 def test_dependency_inputs_contain_only_direct_pins_and_no_unapproved_sources():
