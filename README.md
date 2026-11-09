@@ -1,8 +1,8 @@
 # CloudOps Platform
 
-CloudOps Platform is a small FastAPI service used to demonstrate the engineering work around a secure local application delivery path: container hardening, repeatable Python dependencies, automated tests, secret and vulnerability scanning, and deployment configuration prepared for later review.
+A secure DevOps platform built around a Python FastAPI service: hardened containers, CI with security gates (Ruff, pytest, Gitleaks, Trivy), Helm/Kubernetes manifests, Terraform for AWS, and Prometheus-based observability.
 
-> **Project status:** This is a portfolio project, not a production service. No AWS infrastructure, Kubernetes cluster, Helm release, or monitoring stack has been deployed. No container image has been published. GHCR publishing remains disabled; SEC-002 remains OPEN; K3s/Calico remains NO-GO.
+> **Project status:** Portfolio project, not a production service. Application, containerization, CI, and security scanning are complete and passing. Kubernetes, AWS, and monitoring configurations are prepared but not yet deployed. No container image has been published.
 
 ## Architecture
 
